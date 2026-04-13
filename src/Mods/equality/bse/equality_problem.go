@@ -44,7 +44,8 @@ import (
 	"github.com/GoelandProver/Goeland/Glob"
 	"github.com/GoelandProver/Goeland/Lib"
 	"github.com/GoelandProver/Goeland/Mods/equality/eqStruct"
-	"github.com/GoelandProver/Goeland/Unif"
+	Unif "github.com/GoelandProver/Goeland/Unif/substitution"
+	"github.com/GoelandProver/Goeland/Unif/codetree"
 )
 
 type EqualityProblem struct {
@@ -141,7 +142,7 @@ func makeDataStructFromEqualities(eq Equalities) Unif.DataStructure {
 		formList.Append(e.GetT1(), e.GetT2())
 	}
 
-	return Unif.MakeTermUnifProblem(Lib.ListCpy(formList))
+	return codetree.MakeTermUnifProblem(Lib.ListCpy(formList))
 }
 
 /* Take a list of equalities and build the corresponding assocative map */

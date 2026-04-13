@@ -30,35 +30,16 @@
 * knowledge of the CeCILL license and that you accept its terms.
 **/
 
-package Unif
+package codetree
 
 import (
 	"github.com/GoelandProver/Goeland/AST"
 	"github.com/GoelandProver/Goeland/Glob"
 	"github.com/GoelandProver/Goeland/Lib"
+	"github.com/GoelandProver/Goeland/Unif/substitution"
 )
 
-func transformPred(p AST.Pred) AST.Term {
-	return transformTerm(AST.MakerFun(p.GetID(), p.GetTyArgs(), p.GetArgs()))
-}
 
-func transformTerm(t AST.Term) AST.Term {
-	switch term := t.(type) {
-	case AST.Id, AST.Meta, AST.Var:
-		return t
-	case AST.Fun:
-		args := Lib.ListMap(term.GetTyArgs(), AST.TyToTerm)
-		args.Append(Lib.ListMap(term.GetArgs(), transformTerm).GetSlice()...)
-		return AST.MakerFun(
-			term.GetID(),
-			Lib.NewList[AST.Ty](),
-			args,
-		)
-	}
-
-	Glob.Anomaly("unif parsing", "Unknown term")
-	return nil
-}
 
 /* Parses a formulae to a sequence of instructions. */
 func ParseFormula(formula AST.Form) Sequence {
@@ -68,7 +49,7 @@ func ParseFormula(formula AST.Form) Sequence {
 	case AST.Pred:
 		instructions := Sequence{base: Lib.MkRight[AST.Term, AST.Form](formula)}
 
-		switch term := transformPred(formula_type).(type) {
+		switch term := subst.TransformPred(formula_type).(type) {
 		case AST.Fun:
 			instructions.add(Begin{})
 			parsePred(formula_type.GetID(), term.GetArgs(), &instructions)

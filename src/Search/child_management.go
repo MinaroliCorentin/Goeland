@@ -38,7 +38,7 @@ import (
 	"github.com/GoelandProver/Goeland/Core"
 	"github.com/GoelandProver/Goeland/Glob"
 	"github.com/GoelandProver/Goeland/Lib"
-	"github.com/GoelandProver/Goeland/Unif"
+	"github.com/GoelandProver/Goeland/Unif/substitution"
 )
 
 /* Arguments for waitChildren function & utilitary subfunctions */
@@ -162,7 +162,7 @@ func (ds *destructiveSearch) passSubstToParent(args wcdArgs, proofChildren [][]P
 		Lib.MkLazy(func() string {
 			return fmt.Sprintf(
 				"All children agree on the substitution(s) : %s",
-				Unif.SubstsToString(Core.GetSubstListFromSubstAndFormList(substs)),
+				subst.SubstsToString(Core.GetSubstListFromSubstAndFormList(substs)),
 			)
 		}),
 	)
@@ -180,7 +180,7 @@ func (ds *destructiveSearch) passSubstToParent(args wcdArgs, proofChildren [][]P
 
 	// Remove all the metas introduced by the current node to only retrieve relevant ones for the parent.
 	resultingSubstsAndForms := []Core.SubstAndForm{}
-	resultingSubsts := Lib.NewList[Lib.List[Unif.MixedSubstitution]]()
+	resultingSubsts := Lib.NewList[Lib.List[subst.MixedSubstitution]]()
 
 	for _, subst := range substs {
 		debug(
@@ -283,7 +283,7 @@ func (ds *destructiveSearch) manageOpenedChild(args wcdArgs) {
 	// If the completeness mode is active, then we need to deal with forbidden substitutions.
 	if Glob.GetCompleteness() {
 		forbidden := args.st.GetForbiddenSubsts()
-		forbidden.Add(Lib.ListEquals[Unif.MixedSubstitution], args.currentSubst.GetSubst())
+		forbidden.Add(Lib.ListEquals[subst.MixedSubstitution], args.currentSubst.GetSubst())
 		args.st.SetForbiddenSubsts(forbidden)
 	}
 

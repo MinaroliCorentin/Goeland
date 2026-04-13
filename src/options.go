@@ -425,6 +425,14 @@ func buildOptions() {
 		"Lists the available debuggers and exit",
 		func(bool) { Glob.SetListDebuggers() },
 		func(bool) {})
+	(&option[bool]{}).init(
+		"dt",
+		false,
+		"Use discrimination trees instead of code trees",
+		func(bool) {
+			Glob.SetDt()
+		},
+		func(bool) {})
 }
 
 func chronoInit() {

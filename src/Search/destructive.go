@@ -44,7 +44,8 @@ import (
 	"github.com/GoelandProver/Goeland/Glob"
 	"github.com/GoelandProver/Goeland/Lib"
 	"github.com/GoelandProver/Goeland/Mods/dmt"
-	"github.com/GoelandProver/Goeland/Unif"
+	"github.com/GoelandProver/Goeland/Unif/codetree"
+	substitution "github.com/GoelandProver/Goeland/Unif/substitution"
 )
 
 const (
@@ -62,7 +63,7 @@ type BasicSearchAlgorithm interface {
 	ProofSearch(uint64, State, Communication, Core.SubstAndForm, int, int, []int, bool)
 	DoEndManageBeta(uint64, State, Communication, []Communication, int, int, []int, []int)
 	manageRewriteRules(uint64, State, Communication, Core.FormAndTermsList, int, int, []int)
-	ManageClosureRule(uint64, *State, Communication, Lib.List[Lib.List[Unif.MixedSubstitution]], Core.FormAndTerms, int, int) (bool, []Core.SubstAndForm)
+	ManageClosureRule(uint64, *State, Communication, Lib.List[Lib.List[substitution.MixedSubstitution]], Core.FormAndTerms, int, int) (bool, []Core.SubstAndForm)
 	manageResult(c Communication) (Core.Unifier, []ProofStruct, bool)
 }
 
@@ -99,9 +100,16 @@ func (ds *destructiveSearch) doOneStep(limit int, formula AST.Form) (bool, int) 
 	AST.ResetMeta()
 	// proof.ResetProofFile()
 	ResetExchangesFile()
+	var tp, tn substitution.DataStructure
 
-	tp := Unif.NewNode()
-	tn := Unif.NewNode()
+	if Glob.GetDt() {
+		// TODO : replace by DT
+		tp = codetree.NewNode()
+		tn = codetree.NewNode()
+	} else {
+		tp = codetree.NewNode()
+		tn = codetree.NewNode()
+	}
 
 	state := MakeState(limit, tp, tn, formula)
 	state.SetCurrentProofNodeId(0)
@@ -218,7 +226,7 @@ func (ds *destructiveSearch) searchContradictionAfterApplySusbt(father_id uint64
 				father_id,
 				&st,
 				cha,
-				subst.Copy(Lib.ListCpy[Unif.MixedSubstitution]),
+				subst.Copy(Lib.ListCpy[substitution.MixedSubstitution]),
 				f.Copy(),
 				node_id,
 				original_node_id,
@@ -245,7 +253,7 @@ func (ds *destructiveSearch) searchContradiction(atomic AST.Form, father_id uint
 			father_id,
 			&st,
 			cha,
-			subst.Copy(Lib.ListCpy[Unif.MixedSubstitution]),
+			subst.Copy(Lib.ListCpy[substitution.MixedSubstitution]),
 			fAt, node_id, original_node_id)
 		return true
 	}
@@ -259,7 +267,7 @@ func (ds *destructiveSearch) searchContradiction(atomic AST.Form, father_id uint
 * st : State, the current search State
 * c : channel to send the answer to the father
 * s : substitution to apply to the current State
-* subst_found : Unif.Substitutions found by this process
+* subst_found : subst.Substitutions found by this process
 **/
 func (ds *destructiveSearch) ProofSearch(father_id uint64, st State, cha Communication, s Core.SubstAndForm, node_id int, original_node_id int, meta_to_reintroduce []int, post_dmt_step bool) {
 	debug(
@@ -312,7 +320,7 @@ func (ds *destructiveSearch) ProofSearch(father_id uint64, st State, cha Communi
 				Lib.MkLazy(func() string {
 					return fmt.Sprintf(
 						"Current substitutions list: %v",
-						Unif.SubstsToString(Core.GetSubstListFromSubstAndFormList(st.GetSubstsFound())),
+						substitution.SubstsToString(Core.GetSubstListFromSubstAndFormList(st.GetSubstsFound())),
 					)
 				}),
 			)
@@ -331,7 +339,7 @@ func (ds *destructiveSearch) ProofSearch(father_id uint64, st State, cha Communi
 						father_id,
 						&st,
 						cha,
-						Lib.NewList[Lib.List[Unif.MixedSubstitution]](),
+						Lib.NewList[Lib.List[substitution.MixedSubstitution]](),
 						f, node_id, original_node_id)
 					return
 				}
@@ -522,7 +530,7 @@ func (ds *destructiveSearch) waitFather(father_id uint64, st State, c Communicat
 		)
 
 		// Check if the subst was already seen, returns eventually the subst with new formula(s)
-		if Core.GetSubstListFromSubstAndFormList(given_substs).Contains(answer_father.subst_for_children.GetSubst(), Lib.ListEquals[Unif.MixedSubstitution]) {
+		if Core.GetSubstListFromSubstAndFormList(given_substs).Contains(answer_father.subst_for_children.GetSubst(), Lib.ListEquals[substitution.MixedSubstitution]) {
 			debug(
 				Lib.MkLazy(func() string { return "This substitution was sent by this child" }),
 			)
@@ -556,7 +564,7 @@ func (ds *destructiveSearch) waitFather(father_id uint64, st State, c Communicat
 					Lib.MkLazy(func() string {
 						return fmt.Sprintf(
 							"Forbidden received : %s",
-							Unif.SubstsToString(answer_father.getForbiddenSubsts()),
+							substitution.SubstsToString(answer_father.getForbiddenSubsts()),
 						)
 					}),
 				)
@@ -565,7 +573,7 @@ func (ds *destructiveSearch) waitFather(father_id uint64, st State, c Communicat
 					Lib.MkLazy(func() string {
 						return fmt.Sprintf(
 							"New forbidden for this state: %s",
-							Unif.SubstsToString(st.GetForbiddenSubsts()),
+							substitution.SubstsToString(st.GetForbiddenSubsts()),
 						)
 					}),
 				)
@@ -627,7 +635,7 @@ func (ds *destructiveSearch) waitFather(father_id uint64, st State, c Communicat
 			)
 			debug(
 				Lib.MkLazy(func() string {
-					return fmt.Sprintf("Forbidden : %s", Unif.SubstsToString(st_copy.GetForbiddenSubsts()))
+					return fmt.Sprintf("Forbidden : %s", substitution.SubstsToString(st_copy.GetForbiddenSubsts()))
 				}),
 			)
 			go ds.ProofSearch(Glob.GetGID(), st_copy, c2, answer_father.getSubstForChildren(), node_id, original_node_id, new_meta_to_reintroduce, false)
@@ -814,7 +822,7 @@ func (ds *destructiveSearch) selectChildren(father Communication, children *[]Co
 									Lib.MkLazy(func() string {
 										return fmt.Sprintf(
 											"Result_subst :%s",
-											Unif.SubstsToString(
+											substitution.SubstsToString(
 												Core.GetSubstListFromSubstAndFormList(result_subst),
 											),
 										)
@@ -843,7 +851,7 @@ func (ds *destructiveSearch) selectChildren(father Communication, children *[]Co
 										Lib.MkLazy(func() string {
 											return fmt.Sprintf(
 												"New result susbt : %s",
-												Unif.SubstsToString(
+												substitution.SubstsToString(
 													Core.GetSubstListFromSubstAndFormList(result_subst),
 												),
 											)
@@ -918,7 +926,7 @@ func (ds *destructiveSearch) selectChildren(father Communication, children *[]Co
 				Lib.MkLazy(func() string {
 					return fmt.Sprintf(
 						"New subst at the end : %s",
-						Unif.SubstsToString(Core.GetSubstListFromSubstAndFormList(result_subst)),
+						substitution.SubstsToString(Core.GetSubstListFromSubstAndFormList(result_subst)),
 					)
 				}),
 			)
@@ -1012,7 +1020,7 @@ func (ds *destructiveSearch) tryRewrite(rewritten []Core.IntSubstAndForm, f Core
 	newRewritten = Core.CopyIntSubstAndFormAndTermsList(newRewritten[1:])
 
 	// If we didn't rewrite as itself ?
-	if Unif.UnifSucceeded(choosenRewritten.GetSaf().GetSubst()) {
+	if substitution.UnifSucceeded(choosenRewritten.GetSaf().GetSubst()) {
 		// Create a child with the current rewriting rule and make this process to wait for him,
 		// with a list of other subst to try
 
@@ -1062,7 +1070,7 @@ func (ds *destructiveSearch) ManageClosureRule(
 	father_id uint64,
 	st *State,
 	c Communication,
-	substs Lib.List[Lib.List[Unif.MixedSubstitution]],
+	substs Lib.List[Lib.List[substitution.MixedSubstitution]],
 	f Core.FormAndTerms,
 	node_id int,
 	original_node_id int,
@@ -1072,7 +1080,7 @@ func (ds *destructiveSearch) ManageClosureRule(
 	subst := st.GetAppliedSubst().GetSubst()
 	mm = mm.Union(Core.GetMetaFromSubst(subst))
 	substs_with_mm, substs_with_mm_uncleared, substs_without_mm :=
-		Core.DispatchSubst(substs.Copy(Lib.ListCpy[Unif.MixedSubstitution]), mm)
+		Core.DispatchSubst(substs.Copy(Lib.ListCpy[substitution.MixedSubstitution]), mm)
 
 	unifier := st.GetGlobUnifier()
 	appliedSubst := st.GetAppliedSubst().GetSubst()
@@ -1110,13 +1118,13 @@ func (ds *destructiveSearch) ManageClosureRule(
 			Lib.MkLazy(func() string {
 				return fmt.Sprintf(
 					"Contradiction found (without mm) : %v",
-					Unif.SubstsToString(substs_without_mm))
+					substitution.SubstsToString(substs_without_mm))
 			}),
 		)
 
 		if Glob.GetAssisted() && !substs_without_mm.At(0).Empty() {
 			fmt.Printf("The branch can be closed by using a substitution which has no impact elsewhere!\nApplying it automatically : ")
-			fmt.Printf("%v !\n", Unif.SubstsToString(substs_without_mm))
+			fmt.Printf("%v !\n", substitution.SubstsToString(substs_without_mm))
 		}
 
 		st.SetSubstsFound([]Core.SubstAndForm{st.GetAppliedSubst()})
@@ -1134,7 +1142,7 @@ func (ds *destructiveSearch) ManageClosureRule(
 
 		// As no MM is involved, these substitutions can be unified with all the others having an empty subst.
 		for _, subst := range substs_without_mm.GetSlice() {
-			merge, _ := Unif.MergeMixedSubstitutions(appliedSubst, subst)
+			merge, _ := substitution.MergeMixedSubstitutions(appliedSubst, subst)
 			unifier.AddSubstitutions(appliedSubst, merge)
 		}
 		st.SetGlobUnifier(unifier)
@@ -1157,7 +1165,7 @@ func (ds *destructiveSearch) ManageClosureRule(
 		meta_to_reintroduce := []int{}
 
 		for _, subst_for_father := range substs_with_mm.GetSlice() {
-			if !Unif.UnifSucceeded(subst_for_father) {
+			if !substitution.UnifSucceeded(subst_for_father) {
 				Glob.Anomaly("MCR", fmt.Sprintf(
 					"Error : SubstForFather is failure between : %s and %s \n",
 					Lib.ListToString(subst_for_father, Lib.WithEmpty("(empty substs)")),
@@ -1206,7 +1214,7 @@ func (ds *destructiveSearch) ManageClosureRule(
 				Lib.MkLazy(func() string {
 					return fmt.Sprintf(
 						"Send subst(s) with mm to father : %s",
-						Unif.SubstsToString(
+						substitution.SubstsToString(
 							Core.GetSubstListFromSubstAndFormList(st.GetSubstsFound()),
 						),
 					)
@@ -1216,8 +1224,8 @@ func (ds *destructiveSearch) ManageClosureRule(
 
 			// Add substs_with_mm found with the corresponding subst
 			for i, subst := range substs_with_mm.GetSlice() {
-				mergeUncleared, _ := Unif.MergeMixedSubstitutions(appliedSubst, substs_with_mm_uncleared.At(i))
-				mergeCleared, _ := Unif.MergeMixedSubstitutions(appliedSubst, subst)
+				mergeUncleared, _ := substitution.MergeMixedSubstitutions(appliedSubst, substs_with_mm_uncleared.At(i))
+				mergeCleared, _ := substitution.MergeMixedSubstitutions(appliedSubst, subst)
 				unifier.AddSubstitutions(mergeCleared, mergeUncleared)
 			}
 			st.SetGlobUnifier(unifier)

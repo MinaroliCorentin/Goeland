@@ -34,7 +34,7 @@
 * This file provides the necessary structures to manipulate matching substitutions
 **/
 
-package Unif
+package subst
 
 import (
 	"fmt"
@@ -253,7 +253,7 @@ func (m MatchingSubstitutions) Print() {
 	m.GetSubst().Print()
 }
 
-func (m MatchingSubstitutions) toMixed() MixedSubstitutions {
+func (m MatchingSubstitutions) ToMixed() MixedSubstitutions {
 	substs := []MixedSubstitution{}
 	for _, subst := range m.subst {
 		substs = append(substs, translateFromSubst(subst))
@@ -270,25 +270,25 @@ func (m MixedSubstitutions) MatchingSubstitutions() MatchingSubstitutions {
 }
 
 type MixMatchSubstitutions struct {
-	tof   Lib.Either[AST.Term, AST.Form]
-	subst Substitutions
+	Tof   Lib.Either[AST.Term, AST.Form]
+	Subst Substitutions
 }
 
 // Pre-requisite: only formulas in the tof
 func (s MixMatchSubstitutions) toMatching() MatchingSubstitutions {
-	switch tof := s.tof.(type) {
+	switch tof := s.Tof.(type) {
 	case Lib.Left[AST.Term, AST.Form]:
 		Glob.Anomaly("unification", "expected unification between formulas, got unification between terms")
 	case Lib.Right[AST.Term, AST.Form]:
-		return MakeMatchingSubstitutions(tof.Val, s.subst)
+		return MakeMatchingSubstitutions(tof.Val, s.Subst)
 	}
 
 	Glob.Anomaly("unification", "reached an unreachable case")
 	return MakeMatchingSubstitutions(AST.MakerTop(), MakeEmptySubstitution())
 }
 
-func (s MixMatchSubstitutions) toMixed() MixedSubstitutions {
-	return s.toMatching().toMixed()
+func (s MixMatchSubstitutions) ToMixed() MixedSubstitutions {
+	return s.toMatching().ToMixed()
 }
 
 type MixedTermSubstitutions struct {
@@ -303,11 +303,11 @@ func (s MixedTermSubstitutions) ToString() string {
 	return s.term.ToString() + " {" + Lib.ListToString(substs_list, Lib.WithEmpty("")) + "}"
 }
 
-func (s MixMatchSubstitutions) toMixedTerm() MixedTermSubstitutions {
-	switch tof := s.tof.(type) {
+func (s MixMatchSubstitutions) ToMixedTerm() MixedTermSubstitutions {
+	switch tof := s.Tof.(type) {
 	case Lib.Left[AST.Term, AST.Form]:
 		substs := []MixedSubstitution{}
-		for _, subst := range s.subst {
+		for _, subst := range s.Subst {
 			substs = append(substs, translateFromSubst(subst))
 		}
 		return MixedTermSubstitutions{tof.Val, substs}

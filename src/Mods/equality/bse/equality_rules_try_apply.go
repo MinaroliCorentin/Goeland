@@ -42,7 +42,7 @@ import (
 	"github.com/GoelandProver/Goeland/AST"
 	"github.com/GoelandProver/Goeland/Lib"
 	"github.com/GoelandProver/Goeland/Mods/equality/eqStruct"
-	"github.com/GoelandProver/Goeland/Unif"
+	Unif "github.com/GoelandProver/Goeland/Unif/substitution"
 )
 
 /* Try left rule */

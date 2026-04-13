@@ -34,13 +34,14 @@
 * This file contains all the definitons necessary to make a Code Tree
 **/
 
-package Unif
+package codetree
 
 import (
 	"strings"
 
 	"github.com/GoelandProver/Goeland/AST"
 	"github.com/GoelandProver/Goeland/Lib"
+	"github.com/GoelandProver/Goeland/Unif/substitution"
 )
 
 /*************************/
@@ -77,28 +78,29 @@ func (n Node) IsEmpty() bool {
 	return (len(n.value) == 0)
 }
 
-func MakeUnifProblem(l Lib.List[AST.Form], is_pos bool) DataStructure {
+func MakeUnifProblem(l Lib.List[AST.Form], is_pos bool) subst.DataStructure {
 	return NewNode().MakeDataStruct(l, is_pos)
 }
 
-func MakeTermUnifProblem(l Lib.List[AST.Term]) DataStructure {
+func MakeTermUnifProblem(l Lib.List[AST.Term]) subst.DataStructure {
 	root := makeNode(nil)
 
 	for _, t := range l.GetSlice() {
-		root.insert(ParseTerm(transformTerm(t)))
+		root.insert(ParseTerm(subst.TransformTerm(t)))
 	}
 
 	return root
 }
 
-func (n Node) MakeDataStruct(fl Lib.List[AST.Form], is_pos bool) DataStructure {
+func (n Node) MakeDataStruct(fl Lib.List[AST.Form], is_pos bool) subst.DataStructure {
 	return makeCodeTreeFromAtomic(fl, is_pos)
 }
 
 /* Copy a datastruct */
-func (n Node) Copy() DataStructure {
+func (n Node) Copy() subst.DataStructure {
 	return Node{n.getValue(), n.getChildren(), n.leafFor.Copy(Lib.EitherCpy[AST.Term, AST.Form])}
 }
+
 
 /********************/
 /* Helper functions */
@@ -164,7 +166,7 @@ func makeNode(block CodeBlock) *Node {
 }
 
 /* Insert a lsit of formula into the right tree */
-func (n Node) InsertFormulaListToDataStructure(lf Lib.List[AST.Form]) DataStructure {
+func (n Node) InsertFormulaListToDataStructure(lf Lib.List[AST.Form]) subst.DataStructure {
 	for _, f := range lf.GetSlice() {
 		switch nf := f.Copy().(type) {
 		case AST.Pred:

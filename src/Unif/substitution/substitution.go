@@ -31,34 +31,62 @@
 **/
 
 /**
-* This file contains functions and types which describe the formula's data
-  structure
+* This file provides the necessary structures to manipulate sustitutions
 **/
 
-package Unif
+package subst
 
 import (
 	"github.com/GoelandProver/Goeland/AST"
-	"github.com/GoelandProver/Goeland/Lib"
+	"github.com/GoelandProver/Goeland/Glob"
 )
 
-type DataStructure interface {
-	Print()
-	IsEmpty() bool
-	MakeDataStruct(Lib.List[AST.Form], bool) DataStructure
-	InsertFormulaListToDataStructure(Lib.List[AST.Form]) DataStructure
+var debug Glob.Debugger 
 
-	Unify(AST.Form) (bool, []MixedSubstitutions)
-	UnifyTerm(AST.Term) (bool, []MixedTermSubstitutions)
-	// FIXME:
-	// When the unification gets reworked, think a bit more about the exposed interface.
-	// We want to index on _terms_ while keeping the ability to unify _predicates_.
-	// (we can easily coerce a predicate to a function)
-	// We probably want to expose two functions --- one to unify predicates, and the other
-	// one to unify terms. But maybe we should say that unifying predicates is the "weird"
-	// case instead of the other way around.
-	//
-	// We should also find a more explicit name over `DataStructure`...
+func InitDebugger() {
+	debug = Glob.CreateDebugger("Subst")
+}
 
-	Copy() DataStructure
+type Substitution struct {
+	k AST.Meta
+	v AST.Term
+}
+
+func MakeSubstitution(k AST.Meta, v AST.Term) Substitution {
+	return Substitution{k, v}
+}
+
+func (s Substitution) ToString() string {
+	return "(" + s.k.ToString() + " |-> " + s.v.ToString() + ")"
+}
+
+func (s Substitution) Key() AST.Meta {
+	return s.k
+}
+
+func (s Substitution) Value() AST.Term {
+	return s.v
+}
+
+func (s Substitution) Copy() Substitution {
+	return Substitution{
+		k: s.k.Copy().ToMeta(),
+		v: s.v.Copy(),
+	}
+}
+
+func (s Substitution) Get() (AST.Meta, AST.Term) {
+	return s.k, s.v
+}
+
+func (s *Substitution) Set(value AST.Term) {
+	s.v = value
+}
+
+func (s Substitution) Equals(other any) bool {
+	if typed, ok := other.(Substitution); ok {
+		return s.k.Equals(typed.k) && s.v.Equals(typed.v)
+	}
+
+	return false
 }

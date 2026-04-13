@@ -34,7 +34,7 @@
 * This file provides the necessary structures to represents a sequences for the machine.
 **/
 
-package Unif
+package codetree
 
 import (
 	"fmt"
@@ -42,6 +42,7 @@ import (
 	"github.com/GoelandProver/Goeland/AST"
 	"github.com/GoelandProver/Goeland/Glob"
 	"github.com/GoelandProver/Goeland/Lib"
+	"github.com/GoelandProver/Goeland/Unif/substitution"
 )
 
 /*** Sequence ***/
@@ -61,11 +62,11 @@ func tofCmp(tof1, tof2 Lib.Either[AST.Term, AST.Form]) bool {
 func tofMetaList(tof Lib.Either[AST.Term, AST.Form]) Lib.List[AST.Meta] {
 	switch tof := tof.(type) {
 	case Lib.Left[AST.Term, AST.Form]:
-		return transformTerm(tof.Val).GetMetaList()
+		return subst.TransformTerm(tof.Val).GetMetaList()
 	case Lib.Right[AST.Term, AST.Form]:
 		switch f := tof.Val.(type) {
 		case AST.Pred:
-			return transformPred(f).GetMetaList()
+			return subst.TransformPred(f).GetMetaList()
 		}
 	}
 

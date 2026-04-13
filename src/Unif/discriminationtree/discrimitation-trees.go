@@ -31,55 +31,20 @@
 **/
 
 /**
-* This file provides the necessary structures to manipulate sustitutions
+* This file contains all the definitons necessary to make a Code Tree
 **/
 
-package Unif
+package discriminationtree
 
-import (
-	"github.com/GoelandProver/Goeland/AST"
-)
+// import (
+// 	"strings"
+// 
+// 	"github.com/GoelandProver/Goeland/AST"
+// 	"github.com/GoelandProver/Goeland/Lib"
+// 	"github.com/GoelandProver/Goeland/Unif/substitution"
+// )
 
-type Substitution struct {
-	k AST.Meta
-	v AST.Term
-}
+/*************************/
+/* Structures definition */
+/*************************/
 
-func MakeSubstitution(k AST.Meta, v AST.Term) Substitution {
-	return Substitution{k, v}
-}
-
-func (s Substitution) ToString() string {
-	return "(" + s.k.ToString() + " |-> " + s.v.ToString() + ")"
-}
-
-func (s Substitution) Key() AST.Meta {
-	return s.k
-}
-
-func (s Substitution) Value() AST.Term {
-	return s.v
-}
-
-func (s Substitution) Copy() Substitution {
-	return Substitution{
-		k: s.k.Copy().ToMeta(),
-		v: s.v.Copy(),
-	}
-}
-
-func (s Substitution) Get() (AST.Meta, AST.Term) {
-	return s.k, s.v
-}
-
-func (s *Substitution) Set(value AST.Term) {
-	s.v = value
-}
-
-func (s Substitution) Equals(other any) bool {
-	if typed, ok := other.(Substitution); ok {
-		return s.k.Equals(typed.k) && s.v.Equals(typed.v)
-	}
-
-	return false
-}

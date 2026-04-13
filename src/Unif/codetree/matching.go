@@ -34,7 +34,7 @@
 * This file provides the necessary methods for the unification algorithm.
 **/
 
-package Unif
+package codetree
 
 import (
 	"fmt"
@@ -43,6 +43,7 @@ import (
 	"github.com/GoelandProver/Goeland/AST"
 	"github.com/GoelandProver/Goeland/Glob"
 	"github.com/GoelandProver/Goeland/Lib"
+	"github.com/GoelandProver/Goeland/Unif/substitution"
 )
 
 var debug Glob.Debugger
@@ -54,12 +55,12 @@ func InitDebugger() {
 /*** Unify ***/
 
 /* Helper function to avoid using MakeMachine() outside of this file. */
-func (n Node) Unify(formula AST.Form) (bool, []MixedSubstitutions) {
+func (n Node) Unify(formula AST.Form) (bool, []subst.MixedSubstitutions) {
 	machine := makeMachine()
 	var term AST.Term
 
 	if formula_type, is_pred := formula.(AST.Pred); is_pred {
-		term = transformPred(formula_type)
+		term = subst.TransformPred(formula_type)
 	} else {
 		Glob.Anomaly("unification", fmt.Sprintf("Expected predicate, got %s", formula.ToString()))
 	}
@@ -69,39 +70,39 @@ func (n Node) Unify(formula AST.Form) (bool, []MixedSubstitutions) {
 	// As we have transformed type metas to terms, we get everything in a term substitution.
 	// But externally, we want to have a substitution of both (term) metas to terms and (type) metas to types.
 	// We use MixedSubstitution to properly manage things internally.
-	mixed_substs := []MixedSubstitutions{}
+	mixed_substs := []subst.MixedSubstitutions{}
 	for _, subst := range matching_substs {
-		mixed_substs = append(mixed_substs, subst.toMixed())
+		mixed_substs = append(mixed_substs, subst.ToMixed())
 	}
 
 	return res, mixed_substs
 }
 
-func (n Node) UnifyTerm(t AST.Term) (bool, []MixedTermSubstitutions) {
+func (n Node) UnifyTerm(t AST.Term) (bool, []subst.MixedTermSubstitutions) {
 	m := makeMachine()
 
 	res, matching_substs := m.unify(
 		n,
-		transformTerm(t),
+		subst.TransformTerm(t),
 	)
 
-	mixed_substs := []MixedTermSubstitutions{}
+	mixed_substs := []subst.MixedTermSubstitutions{}
 	for _, subst := range matching_substs {
-		mixed_substs = append(mixed_substs, subst.toMixedTerm())
+		mixed_substs = append(mixed_substs, subst.ToMixedTerm())
 	}
 
 	return res, mixed_substs
 }
 
 /* Tries to find the substitutions needed to unify the formulae with the one described by the sequence of instructions. */
-func (m *Machine) unify(node Node, t AST.Term) (bool, []MixMatchSubstitutions) {
+func (m *Machine) unify(node Node, t AST.Term) (bool, []subst.MixMatchSubstitutions) {
 	m.terms = Lib.MkListV(t)
 	res := m.unifyAux(node)
 	return !reflect.DeepEqual(m.failure, res), res
 }
 
 /*** Unify aux ***/
-func (m *Machine) unifyAux(node Node) []MixMatchSubstitutions {
+func (m *Machine) unifyAux(node Node) []subst.MixMatchSubstitutions {
 	for _, instr := range node.value {
 
 		debug(Lib.MkLazy(func() string { return "------------------------" }))
@@ -109,7 +110,7 @@ func (m *Machine) unifyAux(node Node) []MixMatchSubstitutions {
 		debug(Lib.MkLazy(func() string { return fmt.Sprintf("Meta : %v", m.meta.ToString()) }))
 		debug(
 			Lib.MkLazy(
-				func() string { return fmt.Sprintf("Subst : %v", SubstPairListToString(m.subst)) },
+				func() string { return fmt.Sprintf("Subst : %v", subst.SubstPairListToString(m.subst)) },
 			),
 		)
 		debug(
@@ -184,18 +185,18 @@ func (m *Machine) unifyAux(node Node) []MixMatchSubstitutions {
 		}
 	}
 
-	matching := []MixMatchSubstitutions{}
+	matching := []subst.MixMatchSubstitutions{}
 
 	if node.isLeaf() {
 		for _, f := range node.leafFor.GetSlice() {
 			// Rebuild final substitution between meta and subst
 			final_subst := computeSubstitutions(
-				CopySubstPairList(m.subst),
+				subst.CopySubstPairList(m.subst),
 				m.meta.Copy(),
 				tofMetaList(f),
 			)
-			if !final_subst.Equals(Failure()) {
-				matching = append(matching, MixMatchSubstitutions{tof: f, subst: final_subst})
+			if !final_subst.Equals(subst.Failure()) {
+				matching = append(matching, subst.MixMatchSubstitutions{Tof: f, Subst: final_subst})
 			}
 		}
 	}
@@ -206,7 +207,7 @@ func (m *Machine) unifyAux(node Node) []MixMatchSubstitutions {
 
 /* Unify on goroutines - to manage die message */
 /* TODO : remove when debug ok */
-func (m *Machine) unifyAuxOnGoroutine(n Node, ch chan []MixMatchSubstitutions, father_id uint64) {
+func (m *Machine) unifyAuxOnGoroutine(n Node, ch chan []subst.MixMatchSubstitutions, father_id uint64) {
 	debug(
 		Lib.MkLazy(func() string { return fmt.Sprintf("Child of %v, Unify Aux", father_id) }),
 	)
@@ -216,23 +217,23 @@ func (m *Machine) unifyAuxOnGoroutine(n Node, ch chan []MixMatchSubstitutions, f
 }
 
 /* Launches each child of the current node in a goroutine. */
-func (m *Machine) launchChildrenSearch(node Node) []MixMatchSubstitutions {
-	channels := []chan []MixMatchSubstitutions{}
+func (m *Machine) launchChildrenSearch(node Node) []subst.MixMatchSubstitutions {
+	channels := []chan []subst.MixMatchSubstitutions{}
 	for _, c := range node.children {
 		debug(
 			Lib.MkLazy(
 				func() string { return fmt.Sprintf("Next symbol = %v", c.getValue()[0].ToString()) },
 			),
 		)
-		channels = append(channels, make(chan []MixMatchSubstitutions))
+		channels = append(channels, make(chan []subst.MixMatchSubstitutions))
 	}
 
-	matching := []MixMatchSubstitutions{}
+	matching := []subst.MixMatchSubstitutions{}
 	for i, n := range node.children {
 		ch := channels[i]
 		st := m.terms.Copy(AST.Term.Copy)
 		ip := CopyIntPairList(m.post)
-		sc := CopySubstPairList(m.subst)
+		sc := subst.CopySubstPairList(m.subst)
 
 		copy := Machine{
 			subst:         sc,
@@ -260,7 +261,7 @@ func (m *Machine) launchChildrenSearch(node Node) []MixMatchSubstitutions {
 
 	for cpt_remaining_children > 0 {
 		_, value, _ := reflect.Select(cases)
-		matching = append(matching, value.Interface().([]MixMatchSubstitutions)...)
+		matching = append(matching, value.Interface().([]subst.MixMatchSubstitutions)...)
 		cpt_remaining_children--
 	}
 
@@ -348,7 +349,7 @@ func (m *Machine) put(instr Put) {
 	if m.isUnlocked() {
 		m.subst = append(
 			m.subst,
-			MakeSubstPair(instr.GetIndex(), m.terms.At(m.q)),
+			subst.MakeSubstPair(instr.GetIndex(), m.terms.At(m.q)),
 		)
 	}
 }
@@ -356,8 +357,8 @@ func (m *Machine) put(instr Put) {
 /* Algorithm for the instruction Compare. */
 func (m *Machine) compare(i int, j int) Status {
 	if m.isUnlocked() {
-		i := GetSubstAt(m.subst, i)
-		j := GetSubstAt(m.subst, j)
+		i := subst.GetSubstAt(m.subst, i)
+		j := subst.GetSubstAt(m.subst, j)
 
 		if i != nil && j != nil {
 			i = m.unwrapMeta(i)
