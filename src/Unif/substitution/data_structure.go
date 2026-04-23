@@ -39,9 +39,10 @@ package subst
 
 import (
 	"fmt"
+
 	"github.com/GoelandProver/Goeland/AST"
-	"github.com/GoelandProver/Goeland/Lib"
 	"github.com/GoelandProver/Goeland/Glob"
+	"github.com/GoelandProver/Goeland/Lib"
 )
 
 type DataStructure interface {
@@ -65,7 +66,7 @@ type DataStructure interface {
 }
 
 func TransformPred(p AST.Pred) AST.Term {
-	return TransformTerm(AST.MakerFun(p.GetID(), p.GetTyArgs(), p.GetArgs()))
+	return TransformTerm(AST.MakerFun(p.GetID(), Lib.NewList[AST.Ty](), p.GetArgs()))
 }
 
 func TransformTerm(t AST.Term) AST.Term {
@@ -126,7 +127,6 @@ func MergeSubstitutions(s1, s2 Substitutions) (Substitutions, bool) {
 	return res, same_key
 }
 
-
 // robinsonUnify implements Robinson's structural unification algorithm on
 // Goeland's term representation.  It extends the substitution s in place,
 // threading it through recursive calls, and returns Failure() on any clash.
@@ -140,59 +140,67 @@ func MergeSubstitutions(s1, s2 Substitutions) (Substitutions, bool) {
 func robinsonUnify(term1, term2 AST.Term, s Substitutions) Substitutions {
 	term1 = walkSubst(term1, s)
 	term2 = walkSubst(term2, s)
- 
+
 	if term1.Equals(term2) {
+		fmt.Println("Equals ok")
 		return s
 	}
- 
+
 	switch t1 := term1.(type) {
 	case AST.Meta:
 		if !OccurCheckValid(t1, term2) {
+			fmt.Println("Failure OccurCheck META T1 ")
 			return Failure()
 		}
 		s.Set(t1, term2)
 		EliminateMeta(&s)
 		Eliminate(&s)
 		return s
- 
+
 	case AST.Fun:
 		switch t2 := term2.(type) {
 		case AST.Meta:
 			if !OccurCheckValid(t2, term1) {
+				fmt.Println("Failure OccurCheck META T2 ")
 				return Failure()
 			}
 			s.Set(t2, term1)
 			EliminateMeta(&s)
 			Eliminate(&s)
 			return s
- 
+
 		case AST.Fun:
 			if !t1.GetID().Equals(t2.GetID()) {
+				fmt.Println("Failure Equals Fun ")
 				return Failure()
 			}
-			args1 := t1.GetArgs().GetSlice()
-			args2 := t2.GetArgs().GetSlice()
-			if len(args1) != len(args2) {
+			args1 := t1.GetArgs()
+			args2 := t2.GetArgs()
+			fmt.Printf("%v\n", Lib.ListToString(args1))
+			fmt.Printf("%v\n", Lib.ListToString(args2))
+			if args1.Len() != args2.Len() {
+				fmt.Println("Failure Longueur args ")
 				return Failure()
 			}
-			for i := range args1 {
-				s = robinsonUnify(args1[i].Copy(), args2[i].Copy(), s)
+			for i := range args1.GetSlice() {
+				s = robinsonUnify(args1.At(i).Copy(), args2.At(i).Copy(), s)
 				if s.Equals(Failure()) {
+					fmt.Println("Failure RobinsonJspQuoi ")
 					return Failure()
 				}
 			}
 			return s
- 
+
 		default:
 			return Failure()
 		}
- 
+
 	default:
 		// Var or any other term kind: not expected after Skolemisation.
 		return Failure()
 	}
 }
- 
+
 // walkSubst chases meta-variable bindings in s until reaching an unbound
 // meta or a non-meta term.
 func walkSubst(t AST.Term, s Substitutions) AST.Term {
@@ -205,7 +213,7 @@ func walkSubst(t AST.Term, s Substitutions) AST.Term {
 	}
 	return t
 }
- 
+
 func AddUnification(term1, term2 AST.Term, subst Substitutions) Substitutions {
 	debug(
 		Lib.MkLazy(func() string {
@@ -218,4 +226,3 @@ func AddUnification(term1, term2 AST.Term, subst Substitutions) Substitutions {
 	)
 	return robinsonUnify(term1.Copy(), term2.Copy(), subst.Copy())
 }
- 
