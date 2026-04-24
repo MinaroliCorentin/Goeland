@@ -66,7 +66,7 @@ type DataStructure interface {
 }
 
 func TransformPred(p AST.Pred) AST.Term {
-	return TransformTerm(AST.MakerFun(p.GetID(), Lib.NewList[AST.Ty](), p.GetArgs()))
+	return TransformTerm(AST.MakerFun(p.GetID(), p.GetTyArgs(), p.GetArgs()))
 }
 
 func TransformTerm(t AST.Term) AST.Term {
@@ -142,14 +142,12 @@ func robinsonUnify(term1, term2 AST.Term, s Substitutions) Substitutions {
 	term2 = walkSubst(term2, s)
 
 	if term1.Equals(term2) {
-		fmt.Println("Equals ok")
 		return s
 	}
 
 	switch t1 := term1.(type) {
 	case AST.Meta:
 		if !OccurCheckValid(t1, term2) {
-			fmt.Println("Failure OccurCheck META T1 ")
 			return Failure()
 		}
 		s.Set(t1, term2)
@@ -161,7 +159,6 @@ func robinsonUnify(term1, term2 AST.Term, s Substitutions) Substitutions {
 		switch t2 := term2.(type) {
 		case AST.Meta:
 			if !OccurCheckValid(t2, term1) {
-				fmt.Println("Failure OccurCheck META T2 ")
 				return Failure()
 			}
 			s.Set(t2, term1)
@@ -171,7 +168,6 @@ func robinsonUnify(term1, term2 AST.Term, s Substitutions) Substitutions {
 
 		case AST.Fun:
 			if !t1.GetID().Equals(t2.GetID()) {
-				fmt.Println("Failure Equals Fun ")
 				return Failure()
 			}
 			args1 := t1.GetArgs()
@@ -179,13 +175,11 @@ func robinsonUnify(term1, term2 AST.Term, s Substitutions) Substitutions {
 			fmt.Printf("%v\n", Lib.ListToString(args1))
 			fmt.Printf("%v\n", Lib.ListToString(args2))
 			if args1.Len() != args2.Len() {
-				fmt.Println("Failure Longueur args ")
 				return Failure()
 			}
 			for i := range args1.GetSlice() {
 				s = robinsonUnify(args1.At(i).Copy(), args2.At(i).Copy(), s)
 				if s.Equals(Failure()) {
-					fmt.Println("Failure RobinsonJspQuoi ")
 					return Failure()
 				}
 			}

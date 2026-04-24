@@ -46,8 +46,6 @@ import (
 	subst "github.com/GoelandProver/Goeland/Unif/substitution"
 )
 
-var substitutions map[AST.Term]AST.Term
-
 /*************************/
 /* Structures definition */
 /*************************/
@@ -84,24 +82,6 @@ type DiscriminationNode struct {
 func NewNode() DiscriminationNode {
 	return DiscriminationNode{
 		symbol:   SymbolType{symbol: nil, arity: -1},
-		children: Lib.NewList[DiscriminationNode](),
-		leafFor:  Lib.NewList[AST.Pred](),
-	}
-}
-
-// Node with data
-func MakeNodeWithId(id AST.Id, arity int) DiscriminationNode {
-	return DiscriminationNode{
-		symbol:   SymbolType{symbol: id, arity: arity},
-		children: Lib.NewList[DiscriminationNode](),
-		leafFor:  Lib.NewList[AST.Pred](),
-	}
-}
-
-// Arity is 0 because it's a variable
-func MakeNodeWithMeta(meta AST.Meta) DiscriminationNode {
-	return DiscriminationNode{
-		symbol:   SymbolType{symbol: meta, arity: 0},
 		children: Lib.NewList[DiscriminationNode](),
 		leafFor:  Lib.NewList[AST.Pred](),
 	}
@@ -284,12 +264,10 @@ func (dNode DiscriminationNode) insertRec(seq Lib.List[SymbolType], originalTerm
 				break
 			}
 		}
-
 		if !Exist {
 			dNode.leafFor.Append(originalTerm)
 		}
 		return dNode
-
 	}
 
 	// Create Symbol
@@ -303,7 +281,6 @@ func (dNode DiscriminationNode) insertRec(seq Lib.List[SymbolType], originalTerm
 		if ok = child.symbol.Equals(sym); ok { // Set ok to True
 			foundIndex = i
 			break
-
 		}
 	}
 
@@ -337,7 +314,6 @@ func GetSubTermLength(seq []SymbolType) int {
 		needed = needed - 1 + sym.arity // If Arity == 0 ( Meta ) end this loop, else add the arity of the form/func/...
 		index++
 	}
-	fmt.Println("longeur terme", index)
 	return index
 
 }
@@ -366,27 +342,10 @@ func (dNode DiscriminationNode) RetrieveUnifiables(t AST.Form) Lib.List[AST.Pred
 	return dNode.retrieveRec(seq)
 }
 
-func VerifyPossiblesSub(Met AST.Term, Substitute AST.Term) bool {
-
-	// Source - https://stackoverflow.com/a/2050629
-	// Posted by marketer, modified by community. See post 'Timeline' for change history
-	// Retrieved 2026-04-23, License - CC BY-SA 4.0
-
-	if _, ok := substitutions[Met]; ok {
-		substitutions[Met] = Substitute
-		return true
-	} else {
-		return false
-	}
-
-}
-
 func (dNode DiscriminationNode) retrieveRec(seq []SymbolType) Lib.List[AST.Pred] {
 
-	fmt.Println("Execution de RetrieveREc")
 	res := Lib.NewList[AST.Pred]()
 	if len(seq) == 0 { // End of recursion
-		fmt.Println("Fin de la recursion de retrieveRec")
 		res.Append(dNode.leafFor.GetSlice()...) // Append leafFor of this node
 		return res
 	}
@@ -395,14 +354,11 @@ func (dNode DiscriminationNode) retrieveRec(seq []SymbolType) Lib.List[AST.Pred]
 
 	for _, child := range dNode.children.GetSlice() {
 
-		fmt.Println("Recherche en cours avec", child.ToString())
-
 		isExactMatch := child.symbol.Equals(symQuery)
 
 		// Exact Match
 		if isExactMatch {
 
-			fmt.Println("Exact Match")
 			matches := child.retrieveRec(seq[1:]) // Exact Match -> Search next element
 			res.Append(matches.GetSlice()...)
 		}
@@ -416,7 +372,6 @@ func (dNode DiscriminationNode) retrieveRec(seq []SymbolType) Lib.List[AST.Pred]
 			// Meaning that we can skip the current term of the seq ( paramater of this function ) bc it will be unify with the current term
 			// e.g dNode = x, seq = [f,a] so [f,a] |-> x and we skip 2 because GetSbTermLength of [f,a] is 2
 			skip := GetSubTermLength(seq)
-			fmt.Println("Longueur du skip si dNode.child est une Meta", skip)
 			if skip <= len(seq) { // Security to prevent segfault
 				matches := child.retrieveRec(seq[skip:])
 				res.Append(matches.GetSlice()...)
@@ -427,7 +382,6 @@ func (dNode DiscriminationNode) retrieveRec(seq []SymbolType) Lib.List[AST.Pred]
 			// Reverse of the situation with the previous if.
 			// The symbol from seq ( parameter of this function ) is a Meta, meaning we skip the current term of dNode because it will be unify
 			// e.g dNode = a, seq = [x] so a |-> x and we got to the next term of the dNode
-			fmt.Println("Skip si le term de la sequence est une meta", child.GetArity())
 			matches := child.SkipTreeTermAndContinue(child.GetArity(), seq[1:])
 			res.Append(matches.GetSlice()...)
 		}
@@ -457,13 +411,13 @@ func (dNode DiscriminationNode) InsertFormulaListToDataStructure(lf Lib.List[AST
 		switch nf := f.Copy().(type) {
 		case AST.Pred:
 			fmt.Println("Cas Pred")
-			dNode.Insert(nf)
+			dNode = dNode.Insert(nf)
 		case AST.Not:
 			fmt.Println("Cas not")
 			switch newForm := nf.GetForm().(type) { // Get the type AST.Form
 			case AST.Pred:
 				fmt.Println("Cas not apres cast pour Pred", newForm)
-				dNode.Insert(newForm)
+				dNode = dNode.Insert(newForm)
 			}
 		}
 	}
@@ -487,16 +441,10 @@ func (dNode DiscriminationNode) Unify(inputFormula AST.Form) (bool, []subst.Mixe
 	// For Robinson
 	queryTerm := subst.TransformPred(predFormula)
 
-	fmt.Println("taille candidat", len(candidates.GetSlice()))
-
 	for _, possibleMatch := range candidates.GetSlice() {
 
-		fmt.Println("candiat trouve", possibleMatch.ToString())
 		possibleMatchTerm := subst.TransformPred(possibleMatch) // Pred -> Term for Robinson
 		emptySubst := subst.Substitutions{}
-		fmt.Println("PossibleMatchTerm : ", possibleMatchTerm.ToString())
-
-		fmt.Println("Param Robinson", possibleMatchTerm.ToString(), ",", queryTerm.ToString(), ",", emptySubst.ToString())
 		finalSubst := subst.AddUnification(possibleMatchTerm, queryTerm, emptySubst) // Call Robinson
 
 		if finalSubst.Equals(subst.Failure()) {
@@ -506,13 +454,9 @@ func (dNode DiscriminationNode) Unify(inputFormula AST.Form) (bool, []subst.Mixe
 		}
 
 		if !finalSubst.Equals(subst.Failure()) {
-			fmt.Println("Sustitution")
 			found = true
 			matching := subst.MakeMatchingSubstitutions(possibleMatch, finalSubst) // constructor
 			mixed = append(mixed, matching.ToMixed())                              // convert To Mixed for return
-			for _, elem := range mixed {
-				fmt.Println("element", elem.ToString())
-			}
 		}
 	}
 	return found, mixed
@@ -549,7 +493,7 @@ func (dNode DiscriminationNode) UnifyTerm(t AST.Term) (bool, []subst.MixedTermSu
 
 }
 
-// TODO ?
 func (dNode DiscriminationNode) MakeDataStruct(Formulas Lib.List[AST.Form], is_pos bool) subst.DataStructure {
+	// Gerer cas possitif ou negatif
 	return dNode.InsertFormulaListToDataStructure(Formulas)
 }
