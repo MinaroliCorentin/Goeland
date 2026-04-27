@@ -193,8 +193,8 @@ func initTestVariable() {
 	// Fun
 	gx = AST.MakerFun(g_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](x))
 	ga = AST.MakerFun(g_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](a))
-	fx = AST.MakerFun(f_id, Lib.MkListV(x.GetTy()), Lib.MkListV[AST.Term](x))
-	fy = AST.MakerFun(f_id, Lib.MkListV(y.GetTy()), Lib.MkListV[AST.Term](y))
+	fx = AST.MakerFun(f_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](x))
+	fy = AST.MakerFun(f_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](y))
 	fa = AST.MakerFun(f_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](a))
 	fb = AST.MakerFun(f_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](b))
 	fc = AST.MakerFun(f_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](c))
@@ -449,15 +449,18 @@ func TestRetrieve(t *testing.T) {
 	tree := NewNode()
 	tree = tree.Insert(pax.(AST.Pred)) // Cast
 	tree = tree.Insert(pay.(AST.Pred))
-	tree.Print()
-	results := tree.RetrieveUnifiables(pab)
+	test, results := tree.RetrieveUnifiables(pab)
 	if results.Len() == 0 {
 		fmt.Println("C'est la merde")
 	} else {
 		fmt.Printf("Match : %d \n", results.Len())
 	}
+
 	for _, pred := range results.GetSlice() {
-		fmt.Println(pred.ToString())
+		fmt.Println("List de Pred : ", pred.ToString())
+	}
+	for _, pred := range test {
+		fmt.Println("List de substitution", pred.ToString())
 	}
 
 }
@@ -526,7 +529,7 @@ func TestSkipTreeTermAndContinue(t *testing.T) {
 	results := Lib.NewList[AST.Pred]()
 
 	for _, child := range nodeP.getChildren().GetSlice() {
-		matches := child.SkipTreeTermAndContinue(child.GetArity(), remainingQuery)
+		_, matches := child.SkipTreeTermAndContinue(child.GetArity(), remainingQuery)
 		results.Append(matches.GetSlice()...)
 	}
 
@@ -544,7 +547,7 @@ func TestRetrieveUnifiables(t *testing.T) {
 	tree := NewNode()
 	tree = tree.Insert(pax.(AST.Pred))
 	tree = tree.Insert(pba.(AST.Pred))
-	res := tree.RetrieveUnifiables(pay)
+	_, res := tree.RetrieveUnifiables(pay)
 
 	if res.Len() != 1 {
 		t.Fatalf("Should be only 1")
@@ -579,6 +582,9 @@ func TestUnify(t *testing.T) {
 	for _, elem := range mix {
 		fmt.Println(elem.ToString())
 	}
+	if len(mix) != 1 {
+		t.Fatalf("Should have a found 1 unification")
+	}
 	fmt.Println("-----END TEST-----")
 	fmt.Println()
 
@@ -589,6 +595,9 @@ func TestUnify(t *testing.T) {
 	_, mix1 = tree1.Unify(pab)
 	for _, elem := range mix1 {
 		fmt.Println(elem.ToString())
+	}
+	if len(mix) != 1 {
+		t.Fatalf("Should have a found 1 unification")
 	}
 	fmt.Println("-----END TEST-----")
 	fmt.Println()
@@ -613,6 +622,9 @@ func TestUnify(t *testing.T) {
 	for _, elem := range mix3 {
 		fmt.Println(elem.ToString())
 	}
+	if len(mix) != 1 {
+		t.Fatalf("Should return empty list")
+	}
 	fmt.Println("-----END TEST-----")
 	fmt.Println()
 
@@ -623,6 +635,9 @@ func TestUnify(t *testing.T) {
 	_, mix4 = tree4.Unify(pafy)
 	for _, elem := range mix4 {
 		fmt.Println(elem.ToString())
+	}
+	if len(mix) != 1 {
+		t.Fatalf("Should have a found 1 unification")
 	}
 	fmt.Println("-----END TEST-----")
 	fmt.Println()
@@ -635,6 +650,9 @@ func TestUnify(t *testing.T) {
 	for _, elem5 := range mix5 {
 		fmt.Println(elem5.ToString())
 	}
+	if len(mix) != 1 {
+		t.Fatalf("Should have a found 1 unification")
+	}
 	fmt.Println("-----END TEST-----")
 	fmt.Println()
 
@@ -645,6 +663,9 @@ func TestUnify(t *testing.T) {
 	_, mix6 = tree6.Unify(py)
 	for _, elem := range mix6 {
 		fmt.Println(elem.ToString())
+	}
+	if len(mix) != 1 {
+		t.Fatalf("Should have a found 1 unification")
 	}
 	fmt.Println("-----END TEST-----")
 	fmt.Println()
@@ -657,30 +678,38 @@ func TestUnify(t *testing.T) {
 	for _, elem := range mix7 {
 		fmt.Println(elem.ToString())
 	}
+	if len(mix) != 1 {
+		t.Fatalf("Should have a found 1 unification")
+	}
 	fmt.Println("-----END TEST-----")
 	fmt.Println()
 
 	fmt.Println("-----TEST 09 -----")
+	fmt.Println("-----EXPECTED FAILURE -----")
+
 	tree8 := NewNode()
 	tree8 = tree8.Insert(pxx.(AST.Pred))
-	var mix8 []subst.MixedSubstitutions
-	_, mix8 = tree8.Unify(pab)
-	if len(mix8) != 0 {
-		t.Fatalf("Got %d elements instead of 0", len(mix8))
+	val1, _ := tree8.Unify(pab)
+	fmt.Println("-----EXPECTED FAILURE -----")
+
+	if val1 {
+		t.Fatalf("This test must fail")
 	}
 
 	fmt.Println("-----END TEST-----")
 	fmt.Println()
 
 	fmt.Println("-----TEST 10 -----")
+	fmt.Println("-----EXPECTED FAILURE -----")
+
 	tree9 := NewNode()
 	tree9 = tree9.Insert(pba.(AST.Pred))
 	tree9 = tree9.Insert(pab.(AST.Pred))
-	var mix9 []subst.MixedSubstitutions
-	_, mix9 = tree9.Unify(pxx)
-	if len(mix9) != 0 {
-		t.Fatalf("Got %d elements instead of 0", len(mix9))
+	val2, _ := tree9.Unify(pxx)
+	if val2 {
+		t.Fatalf(" This test must fail ")
 	}
+	fmt.Println("-----EXPECTED FAILURE -----")
 	fmt.Println("-----END TEST-----")
 	fmt.Println()
 
@@ -698,13 +727,15 @@ func TestUnify(t *testing.T) {
 	fmt.Println()
 
 	fmt.Println("-----TEST 12 -----")
+	fmt.Println("-----EXPECTED FAILURE -----")
+
 	tree11 := NewNode()
 	tree11 = tree11.Insert(pab.(AST.Pred))
-	var mix11 []subst.MixedSubstitutions
-	_, mix11 = tree11.Unify(pxx)
-	if len(mix11) != 0 {
-		t.Fatalf("Got %d elements instead of 0", len(mix11))
+	val11, _ := tree11.Unify(pxx)
+	if val11 {
+		t.Fatalf("This test must fail ")
 	}
+	fmt.Println("-----EXPECTED FAILURE -----")
 	fmt.Println("-----END TEST-----")
 	fmt.Println()
 
@@ -715,6 +746,260 @@ func TestUnify(t *testing.T) {
 	_, mix12 = tree12.Unify(pxy)
 	for _, elem := range mix12 {
 		fmt.Println(elem.ToString())
+	}
+	if len(mix) != 1 {
+		t.Fatalf("Should have a found 1 unification")
+	}
+	fmt.Println("-----END TEST-----")
+	fmt.Println()
+
+}
+
+func TestUnifyTerm(t *testing.T) {
+
+	fmt.Println("-----TEST 01 -----")
+	tree := NewNode()
+	tree = tree.Insert(pax.(AST.Pred))
+	queryTerm := subst.TransformPred(pay.(AST.Pred))
+
+	var val bool
+	var mix []subst.MixedTermSubstitutions
+	val, mix = tree.UnifyTerm(queryTerm)
+
+	if val {
+		for _, elem := range mix {
+			fmt.Println("  ->", elem.ToString())
+		}
+	} else {
+		t.Fatalf("Unify Failure")
+	}
+	fmt.Println("-----END TEST-----")
+	fmt.Println()
+
+	fmt.Println("-----TEST 02 -----")
+	tree2 := NewNode()
+	tree2 = tree2.Insert(pax.(AST.Pred))
+	queryTerm2 := subst.TransformPred(pab.(AST.Pred))
+
+	var val2 bool
+	var mix2 []subst.MixedTermSubstitutions
+	val2, mix2 = tree2.UnifyTerm(queryTerm2)
+
+	if val2 {
+		for _, elem := range mix2 {
+			fmt.Println("  ->", elem.ToString())
+		}
+	} else {
+		t.Fatalf("Unify Failure")
+	}
+	fmt.Println("-----END TEST-----")
+	fmt.Println()
+
+	fmt.Println("-----TEST 03 -----")
+	tree3 := NewNode()
+	tree3 = tree3.Insert(pa.(AST.Pred))
+	queryTerm3 := subst.TransformPred(pb.(AST.Pred))
+
+	var val3 bool
+	val3, _ = tree3.UnifyTerm(queryTerm3)
+
+	if val3 {
+		t.Fatalf("Unify Failure")
+	}
+	fmt.Println("-----END TEST-----")
+	fmt.Println()
+
+	fmt.Println("-----TEST 04 -----")
+	tree4 := NewNode()
+	tree4 = tree4.Insert(pa.(AST.Pred))
+	queryTerm4 := subst.TransformPred(pa.(AST.Pred))
+
+	var val4 bool
+	var mix4 []subst.MixedTermSubstitutions
+	val4, mix4 = tree4.UnifyTerm(queryTerm4)
+
+	if val4 {
+		for _, elem := range mix4 {
+			fmt.Println("  ->", elem.ToString())
+		}
+	} else {
+		t.Fatalf("Unify Failure")
+	}
+	fmt.Println("-----END TEST-----")
+	fmt.Println()
+
+	fmt.Println("-----TEST 05 -----")
+	tree5 := NewNode()
+	tree5 = tree5.Insert(pax.(AST.Pred))
+	queryTerm5 := subst.TransformPred(pafy.(AST.Pred))
+
+	var val5 bool
+	var mix5 []subst.MixedTermSubstitutions
+	val5, mix5 = tree5.UnifyTerm(queryTerm5)
+
+	if val5 {
+		for _, elem := range mix5 {
+			fmt.Println("  ->", elem.ToString())
+		}
+	} else {
+		t.Fatalf("Unify Failure")
+	}
+	fmt.Println("-----END TEST-----")
+	fmt.Println()
+
+	fmt.Println("-----TEST 06 -----")
+	tree6 := NewNode()
+	tree6 = tree6.Insert(pafx.(AST.Pred))
+	queryTerm6 := subst.TransformPred(pafy.(AST.Pred))
+
+	var val6 bool
+	var mix6 []subst.MixedTermSubstitutions
+	val6, mix6 = tree6.UnifyTerm(queryTerm6)
+
+	if val6 {
+		for _, elem := range mix6 {
+			fmt.Println("  ->", elem.ToString())
+		}
+	} else {
+		t.Fatalf("Unify Failure")
+	}
+	fmt.Println("-----END TEST-----")
+	fmt.Println()
+
+	fmt.Println("-----TEST 07 -----")
+	tree7 := NewNode()
+	tree7 = tree7.Insert(px.(AST.Pred))
+	queryTerm7 := subst.TransformPred(py.(AST.Pred))
+
+	var val7 bool
+	var mix7 []subst.MixedTermSubstitutions
+	val7, mix7 = tree7.UnifyTerm(queryTerm7)
+
+	if val7 {
+		for _, elem := range mix7 {
+			fmt.Println("  ->", elem.ToString())
+		}
+	} else {
+		t.Fatalf("Unify Failure")
+	}
+	fmt.Println("-----END TEST-----")
+	fmt.Println()
+
+	fmt.Println("-----TEST 08 -----")
+	tree8 := NewNode()
+	tree8 = tree8.Insert(pxy.(AST.Pred))
+	queryTerm8 := subst.TransformPred(pab.(AST.Pred))
+
+	var val8 bool
+	var mix8 []subst.MixedTermSubstitutions
+	val8, mix8 = tree8.UnifyTerm(queryTerm8)
+
+	if val8 {
+		for _, elem := range mix8 {
+			fmt.Println("  ->", elem.ToString())
+		}
+	} else {
+		t.Fatalf("Unify Failure")
+	}
+	fmt.Println("-----END TEST-----")
+	fmt.Println()
+
+	fmt.Println("-----TEST 09 -----")
+	fmt.Println("-----EXPECTED FAILURE -----")
+
+	tree9 := NewNode()
+	tree9 = tree9.Insert(pxx.(AST.Pred))
+	queryTerm9 := subst.TransformPred(pab.(AST.Pred))
+
+	var val9 bool
+	val9, _ = tree9.UnifyTerm(queryTerm9)
+
+	if val9 {
+		t.Fatalf("Unify Failure")
+	}
+	fmt.Println("-----EXPECTED FAILURE -----")
+
+	fmt.Println("-----END TEST-----")
+	fmt.Println()
+
+	fmt.Println("-----TEST 10 -----")
+	fmt.Println("-----EXPECTED FAILURE -----")
+
+	tree10 := NewNode()
+	tree10 = tree10.Insert(pba.(AST.Pred))
+	tree10 = tree10.Insert(pab.(AST.Pred))
+	queryTerm10 := subst.TransformPred(pxx.(AST.Pred))
+
+	var val10 bool
+	var mix10 []subst.MixedTermSubstitutions
+	val10, mix10 = tree10.UnifyTerm(queryTerm10)
+
+	if val10 {
+		t.Fatalf("Got %d elements instead of 0", len(mix10))
+	} else {
+		fmt.Println("Unify Failure (Expected)")
+	}
+	fmt.Println("-----EXPECTED FAILURE -----")
+
+	fmt.Println("-----END TEST-----")
+	fmt.Println()
+
+	fmt.Println("-----TEST 11 -----")
+	tree11 := NewNode()
+	tree11 = tree11.Insert(pb.(AST.Pred))
+	tree11 = tree11.Insert(pa.(AST.Pred))
+	tree11 = tree11.Insert(pfx.(AST.Pred))
+	queryTerm11 := subst.TransformPred(py.(AST.Pred))
+
+	var val11 bool
+	var mix11 []subst.MixedTermSubstitutions
+	val11, mix11 = tree11.UnifyTerm(queryTerm11)
+
+	if val11 {
+		for _, elem := range mix11 {
+			fmt.Println("  ->", elem.ToString())
+		}
+	} else {
+		t.Fatalf("Unify Failure")
+	}
+	fmt.Println("-----END TEST-----")
+	fmt.Println()
+
+	fmt.Println("-----TEST 12 -----")
+	fmt.Println("-----EXPECTED FAILURE -----")
+
+	tree12 := NewNode()
+	tree12 = tree12.Insert(pab.(AST.Pred))
+	queryTerm12 := subst.TransformPred(pxx.(AST.Pred))
+
+	var val12 bool
+	var mix12 []subst.MixedTermSubstitutions
+	val12, mix12 = tree12.UnifyTerm(queryTerm12)
+
+	if val12 {
+		t.Fatalf("Got %d elements instead of 0", len(mix12))
+	} else {
+		fmt.Println("Unify Failure (Expected)")
+	}
+	fmt.Println("-----EXPECTED FAILURE -----")
+	fmt.Println("-----END TEST-----")
+	fmt.Println()
+
+	fmt.Println("-----TEST 13 -----")
+	tree13 := NewNode()
+	tree13 = tree13.Insert(pggab.(AST.Pred))
+	queryTerm13 := subst.TransformPred(pxy.(AST.Pred))
+
+	var val13 bool
+	var mix13 []subst.MixedTermSubstitutions
+	val13, mix13 = tree13.UnifyTerm(queryTerm13)
+
+	if val13 {
+		for _, elem := range mix13 {
+			fmt.Println("  ->", elem.ToString())
+		}
+	} else {
+		t.Fatalf("Unify Failure")
 	}
 	fmt.Println("-----END TEST-----")
 	fmt.Println()
@@ -741,5 +1026,20 @@ func TestMakeDataStruct(t *testing.T) {
 	formulas3.Append(pac)
 	tree6 := tree5.MakeDataStruct(formulas3, true)
 	tree6.Print()
+
+}
+
+func TestRetrieveFail(t *testing.T) {
+
+	tree := NewNode()
+	tree = tree.Insert(pxx.(AST.Pred))
+	test, elem := tree.RetrieveUnifiables(pab)
+
+	for _, elem := range test {
+		fmt.Println("Substs : ", elem.ToString())
+	}
+	for _, elembis := range elem.GetSlice() {
+		fmt.Println("Pred : ", elembis.ToString())
+	}
 
 }

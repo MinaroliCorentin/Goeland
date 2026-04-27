@@ -240,7 +240,8 @@ func (s SymbolType) Equals(target SymbolType) bool {
 
 	if ok := s.getSymbol().Equals(target.getSymbol()); ok {
 		if s.GetArity() != target.GetArity() {
-			Glob.Anomaly("Pred Error", "Same predicat but different arity")
+			fmt.Printf("Symbol Arity : %d, Target Arity : %d", s.GetArity(), target.GetArity())
+			Glob.Anomaly("Pred Error", "Same predicat but different arity ")
 		} else {
 			return true
 		}
@@ -318,8 +319,9 @@ func GetSubTermLength(seq []SymbolType) int {
 
 }
 
-func (dNode DiscriminationNode) SkipTreeTermAndContinue(needed int, remainingQuery []SymbolType) Lib.List[AST.Pred] {
+func (dNode DiscriminationNode) SkipTreeTermAndContinue(needed int, remainingQuery []SymbolType) (subs []subst.Substitution, preds Lib.List[AST.Pred]) {
 
+	var monTableau []subst.Substitution
 	res := Lib.NewList[AST.Pred]()
 
 	// End of recursion
@@ -329,25 +331,29 @@ func (dNode DiscriminationNode) SkipTreeTermAndContinue(needed int, remainingQue
 
 	for _, child := range dNode.children.GetSlice() {
 		newNeeded := needed - 1 + child.GetArity() // 0 if Meta, Else Arity of the Term
-		matches := child.SkipTreeTermAndContinue(newNeeded, remainingQuery)
+		childSubs, matches := child.SkipTreeTermAndContinue(newNeeded, remainingQuery)
+		monTableau = append(monTableau, childSubs...)
 		res.Append(matches.GetSlice()...)
 	}
 
-	return res
+	return monTableau, res
 
 }
 
-func (dNode DiscriminationNode) RetrieveUnifiables(t AST.Form) Lib.List[AST.Pred] {
+func (dNode DiscriminationNode) RetrieveUnifiables(t AST.Form) (subs []subst.Substitution, preds Lib.List[AST.Pred]) {
 	seq := parseFormula(t).GetSlice()
-	return dNode.retrieveRec(seq)
+	subs, preds = dNode.retrieveRec(seq)
+	return subs, preds
 }
 
-func (dNode DiscriminationNode) retrieveRec(seq []SymbolType) Lib.List[AST.Pred] {
+func (dNode DiscriminationNode) retrieveRec(seq []SymbolType) ([]subst.Substitution, Lib.List[AST.Pred]) {
 
+	var monTableau []subst.Substitution
 	res := Lib.NewList[AST.Pred]()
+
 	if len(seq) == 0 { // End of recursion
 		res.Append(dNode.leafFor.GetSlice()...) // Append leafFor of this node
-		return res
+		return monTableau, res
 	}
 
 	symQuery := seq[0] // First Element
@@ -356,10 +362,9 @@ func (dNode DiscriminationNode) retrieveRec(seq []SymbolType) Lib.List[AST.Pred]
 
 		isExactMatch := child.symbol.Equals(symQuery)
 
-		// Exact Match
-		if isExactMatch {
-
-			matches := child.retrieveRec(seq[1:]) // Exact Match -> Search next element
+		if isExactMatch { // Exact Match
+			childSubs, matches := child.retrieveRec(seq[1:]) // Exact Match -> Search next element
+			monTableau = append(monTableau, childSubs...)
 			res.Append(matches.GetSlice()...)
 		}
 
@@ -373,7 +378,10 @@ func (dNode DiscriminationNode) retrieveRec(seq []SymbolType) Lib.List[AST.Pred]
 			// e.g dNode = x, seq = [f,a] so [f,a] |-> x and we skip 2 because GetSbTermLength of [f,a] is 2
 			skip := GetSubTermLength(seq)
 			if skip <= len(seq) { // Security to prevent segfault
-				matches := child.retrieveRec(seq[skip:])
+
+				monTableau = append(monTableau, subst.MakeSubstitution(symChild.ToMeta(), symQuery.getSymbol()))
+				childSubs, matches := child.retrieveRec(seq[skip:])
+				monTableau = append(monTableau, childSubs...)
 				res.Append(matches.GetSlice()...)
 			}
 
@@ -382,12 +390,14 @@ func (dNode DiscriminationNode) retrieveRec(seq []SymbolType) Lib.List[AST.Pred]
 			// Reverse of the situation with the previous if.
 			// The symbol from seq ( parameter of this function ) is a Meta, meaning we skip the current term of dNode because it will be unify
 			// e.g dNode = a, seq = [x] so a |-> x and we got to the next term of the dNode
-			matches := child.SkipTreeTermAndContinue(child.GetArity(), seq[1:])
+			monTableau = append(monTableau, subst.MakeSubstitution(symQuery.getSymbol().ToMeta(), symChild)) // Create a new substitution
+			childSubs, matches := child.SkipTreeTermAndContinue(child.GetArity(), seq[1:])
+			monTableau = append(monTableau, childSubs...)
 			res.Append(matches.GetSlice()...)
 		}
 	}
 
-	return res
+	return monTableau, res
 }
 
 func (dNode DiscriminationNode) Copy() subst.DataStructure {
@@ -399,7 +409,6 @@ func (dNode DiscriminationNode) Copy() subst.DataStructure {
 	}
 
 	newLeafFor := Lib.ListCpy(dNode.leafFor)
-
 	return DiscriminationNode{symbol: dNode.symbol, children: newChildMaster, leafFor: newLeafFor}
 
 }
@@ -424,10 +433,9 @@ func (dNode DiscriminationNode) InsertFormulaListToDataStructure(lf Lib.List[AST
 	return dNode
 }
 
-// TODO
 func (dNode DiscriminationNode) Unify(inputFormula AST.Form) (bool, []subst.MixedSubstitutions) {
 
-	candidates := dNode.RetrieveUnifiables(inputFormula)
+	valSubst, candidates := dNode.RetrieveUnifiables(inputFormula)
 	var mixed []subst.MixedSubstitutions
 	var found bool
 
@@ -440,20 +448,18 @@ func (dNode DiscriminationNode) Unify(inputFormula AST.Form) (bool, []subst.Mixe
 
 	// For Robinson
 	queryTerm := subst.TransformPred(predFormula)
+	initialSubst := subst.Substitutions(valSubst)
 
 	for _, possibleMatch := range candidates.GetSlice() {
 
-		possibleMatchTerm := subst.TransformPred(possibleMatch) // Pred -> Term for Robinson
-		emptySubst := subst.Substitutions{}
-		finalSubst := subst.AddUnification(possibleMatchTerm, queryTerm, emptySubst) // Call Robinson
+		possibleMatchTerm := subst.TransformPred(possibleMatch)                        // Pred -> Term for Robinson
+		finalSubst := subst.AddUnification(possibleMatchTerm, queryTerm, initialSubst) // Call Robinson
 
 		if finalSubst.Equals(subst.Failure()) {
 			fmt.Println("-------------------------")
-			fmt.Println("Echec Substitution")
+			fmt.Println("Substitution FAILURE")
 			fmt.Println("-------------------------")
-		}
-
-		if !finalSubst.Equals(subst.Failure()) {
+		} else {
 			found = true
 			matching := subst.MakeMatchingSubstitutions(possibleMatch, finalSubst) // constructor
 			mixed = append(mixed, matching.ToMixed())                              // convert To Mixed for return
@@ -462,15 +468,13 @@ func (dNode DiscriminationNode) Unify(inputFormula AST.Form) (bool, []subst.Mixe
 	return found, mixed
 }
 
-// TODO
 func (dNode DiscriminationNode) UnifyTerm(t AST.Term) (bool, []subst.MixedTermSubstitutions) {
 
 	var mixed []subst.MixedTermSubstitutions
 	var found bool
 
 	seq := parseTerm(t).GetSlice()
-	candidates := dNode.retrieveRec(seq)
-
+	_, candidates := dNode.retrieveRec(seq)
 	for _, possibleMatch := range candidates.GetSlice() {
 
 		candidateTerm := subst.TransformPred(possibleMatch)
@@ -479,21 +483,21 @@ func (dNode DiscriminationNode) UnifyTerm(t AST.Term) (bool, []subst.MixedTermSu
 
 		if !finalSubst.Equals(subst.Failure()) {
 			found = true
-
 			mixMatch := subst.MixMatchSubstitutions{
 				Tof:   Lib.MkLeft[AST.Term, AST.Form](candidateTerm),
 				Subst: finalSubst,
 			}
 			mixed = append(mixed, mixMatch.ToMixedTerm())
+		} else {
+			fmt.Println("-------------------------")
+			fmt.Println("Substitution FAILURE")
+			fmt.Println("-------------------------")
 		}
-
 	}
-
 	return found, mixed
-
 }
 
 func (dNode DiscriminationNode) MakeDataStruct(Formulas Lib.List[AST.Form], is_pos bool) subst.DataStructure {
-	// Gerer cas possitif ou negatif
+	// Gerer cas positif ou negatif
 	return dNode.InsertFormulaListToDataStructure(Formulas)
 }
