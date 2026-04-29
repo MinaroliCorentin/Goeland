@@ -246,16 +246,6 @@ func initTestVariable() {
 	PRb = AST.MakerPred(PR_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](b))
 }
 
-/*
-func initCodeTreesTests(lf Lib.List[AST.Form]) (Unif.DataStructure, Unif.DataStructure) {
-	tp = Unif.NewNode()
-	tn = Unif.NewNode()
-	tp = tp.MakeDataStruct(lf, true)
-	tn = tn.MakeDataStruct(lf, false)
-	return tp, tn
-}
-*/
-
 func initDebuggers() {
 	AST.InitDebugger()
 	Typing.InitDebugger()
@@ -413,7 +403,11 @@ func TestPrintDoublonCheck(t *testing.T) {
 func TestParseFormula(t *testing.T) {
 
 	tmp := parseFormula(pax)
+
+	fmt.Println(tmp.GetSlice())
+
 	for _, value := range tmp.GetSlice() {
+		fmt.Println(value.getSymbol().ToString())
 		if value.getSymbol().ToString() == "P" {
 			if value.GetArity() != 2 {
 				t.Fatalf("Arrity Error")
@@ -1153,50 +1147,60 @@ func TestUnifyTerm(t *testing.T) {
 }
 
 func TestMakeDataStruct(t *testing.T) {
-	tree := NewNode()
-	formulas := Lib.NewList[AST.Form]()
-	formulas.Append(pxy)
-	tree2 := tree.MakeDataStruct(formulas, true)
-	tree2.Print()
 
-	tree3 := NewNode()
+	pac_form := not_pac.(AST.Not).GetForm().(AST.Pred)
+
+	fmt.Println("Test positive tree")
+
+	tree1 := NewNode()
+	formulas1 := Lib.NewList[AST.Form]()
+	formulas1.Append(pab)     // + => Insert
+	formulas1.Append(not_pac) // - => Ignore
+	formulas1.Append(pba)     // + => Insert
+
+	resultTree1 := tree1.MakeDataStruct(formulas1, true).(DiscriminationNode)
+
+	// Vérifications
+	if len(resultTree1.RetrieveUnifiables(pab)) == 0 {
+		t.Fatalf(" Tree must contain pab")
+	}
+	if len(resultTree1.RetrieveUnifiables(pba)) == 0 {
+		t.Fatalf(" Tree must contain pba ")
+	}
+	if len(resultTree1.RetrieveUnifiables(pac_form)) != 0 {
+		t.Fatalf(" Tree mustn't contain pac because it's negative in the positive tree")
+	}
+
+	fmt.Println("Test negative tree")
+
+	tree2 := NewNode()
 	formulas2 := Lib.NewList[AST.Form]()
-	formulas2.Append(pab)
-	formulas2.Append(not_pac)
-	formulas2.Append(pba)
-	tree4 := tree3.MakeDataStruct(formulas2, true)
-	tree4.Print()
+	formulas2.Append(pab)     // + => Ignored
+	formulas2.Append(not_pac) // - => Insert
+	formulas2.Append(pba)     // + => Ignored
 
-	tree5 := NewNode()
-	formulas3 := Lib.NewList[AST.Form]()
-	formulas3.Append(not_pac)
-	tree6 := tree5.MakeDataStruct(formulas3, true)
-	tree6.Print()
+	resultTree2 := tree2.MakeDataStruct(formulas2, false).(DiscriminationNode)
+
+	// Vérifications
+	if len(resultTree2.RetrieveUnifiables(pac_form)) == 0 {
+		t.Fatalf(" Tree must contain not_pac ")
+	}
+	if len(resultTree2.RetrieveUnifiables(pab)) != 0 {
+		t.Fatalf(" Tree musn't contain pab because it's positive in the negative tree")
+	}
+	if len(resultTree2.RetrieveUnifiables(pba)) != 0 {
+		t.Fatalf(" Tree mustn't contain pba because it's positive in the negative tree")
+	}
+
+	resultTree1.Print()
+	resultTree2.Print()
 
 }
 
 func TestMaVieEllePueSaMere(t *testing.T) {
 
-	fmt.Println("-----TEST 01 -----")
-	tree := NewNode()
-	tree = tree.Insert(pab.(AST.Pred))
-	var mix []subst.MixedSubstitutions
-	_, mix = tree.Unify(pay)
-	for _, elem := range mix {
-		fmt.Println(elem.ToString())
-	}
-	if len(mix) != 1 {
-		t.Fatalf("Should have a found 1 unification")
-	}
-	for _, elem := range mix {
-		if elem.GetForm().ToString() != "P(a, Y)" {
-			t.Fatalf("Fatal Failure, shouhd have P(a, Y)")
-		}
-	}
+	metaIdentication(pax)
 
-	fmt.Println("-----END TEST-----")
-	fmt.Println()
-
-	tree.Print()
+	metaIdentication(pabc)
 
 }

@@ -71,6 +71,20 @@ func makeSymbolType(t AST.Term, arity int) SymbolType {
 	return SymbolType{t, arity}
 }
 
+// Equals between two SymbolType
+func (s SymbolType) Equals(target SymbolType) bool {
+
+	if ok := s.getSymbol().Equals(target.getSymbol()); ok {
+		if s.GetArity() != target.GetArity() {
+			fmt.Printf("Symbol Arity : %d, Target Arity : %d", s.GetArity(), target.GetArity())
+			Glob.Anomaly("Pred Error", "Same predicat but different arity ")
+		} else {
+			return true
+		}
+	}
+	return false
+}
+
 /* Each node of a CodeTree is composed of a sequence of instruction and its children. If it's a leaf, it has formulaes corresponding to the sequence of instructions. */
 type DiscriminationNode struct {
 	symbol   SymbolType                   // Contain the AST.Term and Arity
@@ -78,7 +92,7 @@ type DiscriminationNode struct {
 	leafFor  Lib.List[AST.Pred]           // If not empty, contains the where it come from
 }
 
-// Basic Node with no data inside
+// Basic Node. Create a SymbolType{nil, -1} and empty list for children and leafFor
 func NewNode() DiscriminationNode {
 	return DiscriminationNode{
 		symbol:   SymbolType{symbol: nil, arity: -1},
@@ -87,10 +101,28 @@ func NewNode() DiscriminationNode {
 	}
 }
 
+// Basic Node with SymbolType and no empty list for children and leafFor
 func MakeNodeWithSym(sym SymbolType) DiscriminationNode {
 	return DiscriminationNode{
 		symbol:   sym,
 		children: Lib.NewList[DiscriminationNode](),
+		leafFor:  Lib.NewList[AST.Pred](),
+	}
+}
+
+func MakeNodeWithSymAndleaf(sym SymbolType, leaf Lib.List[AST.Pred]) DiscriminationNode {
+	return DiscriminationNode{
+		symbol:   sym,
+		children: Lib.NewList[DiscriminationNode](),
+		leafFor:  leaf,
+	}
+}
+
+// Basic Node with SymbolType, children and empty List for leafFor
+func MakeNodeWithSymAndChildren(sym SymbolType, children Lib.List[DiscriminationNode]) DiscriminationNode {
+	return DiscriminationNode{
+		symbol:   sym,
+		children: children,
 		leafFor:  Lib.NewList[AST.Pred](),
 	}
 }
@@ -107,17 +139,23 @@ func (dNode DiscriminationNode) getSymbol() AST.Term {
 	return dNode.symbol.getSymbol()
 }
 
-func (dNode DiscriminationNode) IsEmpty() bool {
-	return dNode.symbol.IsNil()
+func (dNode DiscriminationNode) getChildren() Lib.List[DiscriminationNode] {
+	return dNode.children
+}
+
+func (dNode DiscriminationNode) getLeafFor() Lib.List[AST.Pred] {
+	return dNode.leafFor
 }
 
 func (dNode DiscriminationNode) ToString() string {
 	return dNode.getSymbol().ToString()
 }
 
+// Struct with a Pred and a associated substitution. Used for Robinson
 type CandidatResult struct {
-	Pred AST.Pred
-	Subs subst.Substitutions
+	Pred AST.Pred            // Predicat
+	Subs subst.Substitutions // The associated substitution
+
 }
 
 func (Candidat CandidatResult) getPred() AST.Pred {
@@ -135,13 +173,6 @@ func MakeCandidat(p AST.Pred, sub subst.Substitutions) CandidatResult {
 	}
 }
 
-func MakeCandidatResultWithPred(p AST.Pred) CandidatResult {
-	return CandidatResult{
-		Pred: p,
-		Subs: subst.Substitutions{},
-	}
-}
-
 /*****************************/
 /* End Structures definition */
 /*****************************/
@@ -150,6 +181,8 @@ func MakeCandidatResultWithPred(p AST.Pred) CandidatResult {
 /*********** Parse ***********/
 /*****************************/
 
+// Parse a AST.Form formula to a List of SymbolType.
+// e.g AST.Form == pax     => [p(arity :2),a(arity:0), x(arity:0)]
 func parseFormula(formula AST.Form) Lib.List[SymbolType] {
 	res := Lib.NewList[SymbolType]()
 	// The formula has to be a predicate
@@ -194,6 +227,9 @@ func parseTerm(t AST.Term) Lib.List[SymbolType] {
 /********* Transform *********/
 /*****************************/
 
+// Case t is a Function => SymbolType{t.ID, t.getArgs}
+// Case t is a Meta => SymbolType{t.ID, 0}
+// Else Glob.Anomaly
 func FirstElementToSymbolType(t AST.Term) SymbolType {
 	switch t := t.(type) {
 	case AST.Fun: // Case function
@@ -208,16 +244,14 @@ func FirstElementToSymbolType(t AST.Term) SymbolType {
 
 func TermToNode(t AST.Term) DiscriminationNode {
 	switch t := t.(type) {
-	case AST.Fun:
+	case AST.Fun: // Accumulate all the term of the AST.Term then create a Node with all the children
 		children := Lib.NewList[DiscriminationNode]()
 		for _, c := range t.GetArgs().GetSlice() {
 			children.Append(TermToNode(c))
 		}
-
-		// Node with all his children
-		return DiscriminationNode{FirstElementToSymbolType(t), children, Lib.NewList[AST.Pred]()}
-	case AST.Meta:
-		return DiscriminationNode{FirstElementToSymbolType(t), Lib.NewList[DiscriminationNode](), Lib.NewList[AST.Pred]()}
+		return MakeNodeWithSymAndChildren(FirstElementToSymbolType(t), children)
+	case AST.Meta: // Node with T as SymbolType and empty children / leafFor
+		return MakeNodeWithSym(FirstElementToSymbolType(t))
 	default:
 		Glob.Anomaly("TermToST", "Var or Id")
 		return NewNode()
@@ -228,53 +262,18 @@ func TermToNode(t AST.Term) DiscriminationNode {
 /******* End Transform *******/
 /*****************************/
 
-func (dNode DiscriminationNode) Print() {
-	for _, child := range dNode.children.GetSlice() {
-		child.displayRec(2) // Magic Number
-	}
-}
+/*****************************/
+/*********** Insrt ***********/
+/*****************************/
 
-func (dNode DiscriminationNode) displayRec(indent int) {
-
-	prefix := strings.Repeat("    ", indent-1) + " |-- "
-
-	if indent == 2 {
-		prefix = strings.Repeat("[ROOT]", indent-1) + " |-- "
-	}
-
-	fmt.Printf("%s%s arity : %d\n", prefix, dNode.getSymbol().ToString(), dNode.GetArity())
-
-	if dNode.leafFor.Len() > 0 {
-		leafPrefix := strings.Repeat("    ", indent) + " [=> "
-		for _, pred := range dNode.leafFor.GetSlice() {
-			fmt.Printf("%s%s]\n", leafPrefix, pred.ToString())
-		}
-	}
-
-	for _, child := range dNode.children.GetSlice() {
-		child.displayRec(indent + 1)
-	}
-}
-
-// Equals between two SymbolType
-func (s SymbolType) Equals(target SymbolType) bool {
-
-	if ok := s.getSymbol().Equals(target.getSymbol()); ok {
-		if s.GetArity() != target.GetArity() {
-			fmt.Printf("Symbol Arity : %d, Target Arity : %d", s.GetArity(), target.GetArity())
-			Glob.Anomaly("Pred Error", "Same predicat but different arity ")
-		} else {
-			return true
-		}
-	}
-	return false
-}
-
+// Insert a AST.Pred in the tree. If using a AST.term, it have to be cast when inserting ( tree = tree.Insert(px.(AST.pred)) )
+// Call the parser then the auxiliary function
 func (dNode DiscriminationNode) Insert(p AST.Pred) DiscriminationNode {
 	sym_list := parseFormula(p)
 	return dNode.insertRec(sym_list, p)
 }
 
+// Auxiliary function for insert.
 func (dNode DiscriminationNode) insertRec(seq Lib.List[SymbolType], originalTerm AST.Pred) DiscriminationNode {
 
 	// End of recursion, time to insert
@@ -294,6 +293,12 @@ func (dNode DiscriminationNode) insertRec(seq Lib.List[SymbolType], originalTerm
 
 	// Create Symbol
 	sym := seq.At(0)
+
+	// fmt.Println("Symbol : ", sym.getSymbol().ToString())
+	// fmt.Println("Meta : ", sym.getSymbol().IsMeta())
+	// fmt.Println("Fun : ", sym.getSymbol().IsFun())
+	// fmt.Println("Cst : ", sym.getSymbol().IsFun() && sym.GetArity() == 0)
+
 	foundIndex := -1
 	childrenSlice := dNode.children.GetSlice()
 
@@ -306,21 +311,28 @@ func (dNode DiscriminationNode) insertRec(seq Lib.List[SymbolType], originalTerm
 		}
 	}
 
-	// Child already exist
-	if ok {
+	if ok { // Child already exist
 
 		// Insert and update the sequence
 		updatedChild := childrenSlice[foundIndex].insertRec(seq.RemoveAt(0), originalTerm)
 		dNode.children.Upd(foundIndex, updatedChild) // Update children[foundIntex] = updateChild
-		// if Child doesn't exist
-	} else {
 
-		newChild := MakeNodeWithSym(sym)                                  // Create a new Node with the new SymbolType
+	} else { // if Child doesn't exist
+
+		newChild := MakeNodeWithSym(sym)                                  // Create a new Node with the new SymbolType and his leafFor
 		updatedChild := newChild.insertRec(seq.RemoveAt(0), originalTerm) // Insert the rest of the sequence after the new child
 		dNode.children.Append(updatedChild)                               // Update the children of the args node
 	}
-	return dNode // Return updated node
+	return dNode
 }
+
+/*****************************/
+/********* End insrt *********/
+/*****************************/
+
+/*****************************/
+/********** Retriev **********/
+/*****************************/
 
 func GetSubTermLength(seq []SymbolType) int {
 
@@ -354,7 +366,6 @@ func (dNode DiscriminationNode) SkipTreeTermAndContinue(needed int, remainingQue
 		matches := child.SkipTreeTermAndContinue(newNeeded, remainingQuery, substitutions)
 		subs = append(subs, matches...)
 	}
-
 	return subs
 
 }
@@ -385,11 +396,13 @@ func (dNode DiscriminationNode) retrieveRec(seq []SymbolType, currentEnv subst.S
 
 		isExactMatch := child.symbol.Equals(symQuery)
 		// fmt.Println("Exact Match", child.getSymbol())
+
 		if isExactMatch { // Exact Match
 			matches := child.retrieveRec(seq[1:], currentEnv) // Exact Match -> Search next element
 			results = append(results, matches...)
 		}
 
+		// Depending of the symbol of the child, there is 2 possilities, either the child is a meta, ether the sym is a meta
 		symChild := child.getSymbol()
 
 		// Case the child is a AST.Meta
@@ -463,6 +476,42 @@ func (dNode DiscriminationNode) retrieveRec(seq []SymbolType, currentEnv subst.S
 	return results
 }
 
+/*****************************/
+/* DataStruct implementation */
+/*****************************/
+
+func (dNode DiscriminationNode) Print() {
+	for _, child := range dNode.children.GetSlice() {
+		child.displayRec(2) // Magic Number (Set the indent but bellow 2 the display is horrible and above 2 is bugget for ??? reason)
+	}
+}
+
+func (dNode DiscriminationNode) displayRec(indent int) {
+
+	prefix := strings.Repeat("    ", indent-1) + " |-- "
+
+	if indent == 2 {
+		prefix = strings.Repeat("[ROOT]", indent-1) + " |-- "
+	}
+
+	fmt.Printf("%s%s arity : %d\n", prefix, dNode.getSymbol().ToString(), dNode.GetArity())
+
+	if dNode.leafFor.Len() > 0 {
+		leafPrefix := strings.Repeat("    ", indent) + " [=> "
+		for _, pred := range dNode.leafFor.GetSlice() {
+			fmt.Printf("%s%s]\n", leafPrefix, pred.ToString())
+		}
+	}
+
+	for _, child := range dNode.children.GetSlice() {
+		child.displayRec(indent + 1)
+	}
+}
+
+func (dNode DiscriminationNode) IsEmpty() bool {
+	return dNode.symbol.IsNil()
+}
+
 func (dNode DiscriminationNode) Copy() subst.DataStructure {
 
 	newChildMaster := Lib.NewList[DiscriminationNode]()
@@ -476,19 +525,43 @@ func (dNode DiscriminationNode) Copy() subst.DataStructure {
 
 }
 
+func (dNode DiscriminationNode) MakeDataStruct(formulas Lib.List[AST.Form], is_pos bool) subst.DataStructure {
+
+	form := Lib.NewList[AST.Form]()
+
+	// fixme: why are we doing this here?
+	for _, f := range formulas.GetSlice() {
+		switch nf := f.(type) {
+		case AST.Pred:
+			if is_pos {
+				form.Append(nf.Copy())
+			}
+		case AST.Not:
+			switch nf.GetForm().(type) {
+			case AST.Pred:
+				if !(is_pos) {
+					form.Append(nf.GetForm())
+				}
+			}
+		}
+	}
+
+	return dNode.InsertFormulaListToDataStructure(form)
+}
+
 func (dNode DiscriminationNode) InsertFormulaListToDataStructure(lf Lib.List[AST.Form]) subst.DataStructure {
-	fmt.Println("Form")
+	//fmt.Println("Form")
 	for _, f := range lf.GetSlice() {
-		fmt.Println("element f", f.ToString())
+		//fmt.Println("element f", f.ToString())
 		switch nf := f.Copy().(type) {
 		case AST.Pred:
-			fmt.Println("Cas Pred")
+			//fmt.Println("Cas Pred")
 			dNode = dNode.Insert(nf)
 		case AST.Not:
-			fmt.Println("Cas not")
+			//fmt.Println("Cas not")
 			switch newForm := nf.GetForm().(type) { // Get the type AST.Form
 			case AST.Pred:
-				fmt.Println("Cas not apres cast pour Pred", newForm.ToString())
+				//fmt.Println("Cas not apres cast pour Pred", newForm.ToString())
 				dNode = dNode.Insert(newForm)
 			}
 		}
@@ -579,9 +652,4 @@ func (dNode DiscriminationNode) UnifyTerm(t AST.Term) (bool, []subst.MixedTermSu
 		}
 	}
 	return found, mixed
-}
-
-func (dNode DiscriminationNode) MakeDataStruct(Formulas Lib.List[AST.Form], is_pos bool) subst.DataStructure {
-	// Gérer cas positif ou negatif
-	return dNode.InsertFormulaListToDataStructure(Formulas)
 }
