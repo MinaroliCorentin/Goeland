@@ -293,12 +293,6 @@ func (dNode DiscriminationNode) insertRec(seq Lib.List[SymbolType], originalTerm
 
 	// Create Symbol
 	sym := seq.At(0)
-
-	// fmt.Println("Symbol : ", sym.getSymbol().ToString())
-	// fmt.Println("Meta : ", sym.getSymbol().IsMeta())
-	// fmt.Println("Fun : ", sym.getSymbol().IsFun())
-	// fmt.Println("Cst : ", sym.getSymbol().IsFun() && sym.GetArity() == 0)
-
 	foundIndex := -1
 	childrenSlice := dNode.children.GetSlice()
 
@@ -380,7 +374,6 @@ func (dNode DiscriminationNode) retrieveRec(seq []SymbolType, currentEnv subst.S
 
 	var results []CandidatResult
 
-	// Voir pour la suite, est-ce necessaire de faire ceci alors que Robinson a déjà vérifier les blocs précédent, notamment celui juste avant de ce rendre compte que cette partie va fonctionner ou non
 	if len(seq) == 0 { // End of recursion
 		for _, p := range dNode.leafFor.GetSlice() {
 			results = append(results, MakeCandidat(p, currentEnv))
@@ -390,13 +383,9 @@ func (dNode DiscriminationNode) retrieveRec(seq []SymbolType, currentEnv subst.S
 
 	symQuery := seq[0] // First Element
 
-	// fmt.Println("RetrieveRec SymQuery", symQuery.getSymbol().ToString())
-
 	for _, child := range dNode.children.GetSlice() {
 
 		isExactMatch := child.symbol.Equals(symQuery)
-		// fmt.Println("Exact Match", child.getSymbol())
-
 		if isExactMatch { // Exact Match
 			matches := child.retrieveRec(seq[1:], currentEnv) // Exact Match -> Search next element
 			results = append(results, matches...)
@@ -413,15 +402,13 @@ func (dNode DiscriminationNode) retrieveRec(seq []SymbolType, currentEnv subst.S
 			// e.g dNode = x, seq = [f,a] so [f,a] |-> x and we skip 2 because GetSbTermLength of [f,a] is 2
 			skip := GetSubTermLength(seq)
 
-			// fmt.Println("Longueur du skip", skip)
-
 			if skip <= len(seq) { // Security to prevent segfault
 
 				var mergedSub subst.Substitutions
 				if skip == 1 {
 					currentSub := subst.MakeSubstitution(symChild.ToMeta(), symQuery.getSymbol())
 					tmp3 := subst.Substitutions{currentSub}
-					// Ok Commat Idoms doesn't works because ??????????????????????????????
+					// Ok Commat Idoms doesn't works so we use this
 					if len(currentEnv) == 0 {
 						mergedSub = tmp3
 					} else {
@@ -462,11 +449,6 @@ func (dNode DiscriminationNode) retrieveRec(seq []SymbolType, currentEnv subst.S
 			if !mergedSub.Equals(subst.Failure()) {
 				childResults := child.SkipTreeTermAndContinue(child.GetArity(), seq[1:], mergedSub)
 				results = append(results, childResults...)
-
-				// for _, elem := range results {
-				// fmt.Println("elem pred Query meta", elem.getPred().ToString())
-				// fmt.Println("elem pred Query meta", elem.GetSubs().ToString())
-				// }
 			}
 
 		} else {
@@ -529,7 +511,6 @@ func (dNode DiscriminationNode) MakeDataStruct(formulas Lib.List[AST.Form], is_p
 
 	form := Lib.NewList[AST.Form]()
 
-	// fixme: why are we doing this here?
 	for _, f := range formulas.GetSlice() {
 		switch nf := f.(type) {
 		case AST.Pred:
@@ -550,18 +531,13 @@ func (dNode DiscriminationNode) MakeDataStruct(formulas Lib.List[AST.Form], is_p
 }
 
 func (dNode DiscriminationNode) InsertFormulaListToDataStructure(lf Lib.List[AST.Form]) subst.DataStructure {
-	//fmt.Println("Form")
 	for _, f := range lf.GetSlice() {
-		//fmt.Println("element f", f.ToString())
 		switch nf := f.Copy().(type) {
 		case AST.Pred:
-			//fmt.Println("Cas Pred")
 			dNode = dNode.Insert(nf)
 		case AST.Not:
-			//fmt.Println("Cas not")
 			switch newForm := nf.GetForm().(type) { // Get the type AST.Form
 			case AST.Pred:
-				//fmt.Println("Cas not apres cast pour Pred", newForm.ToString())
 				dNode = dNode.Insert(newForm)
 			}
 		}
@@ -590,10 +566,6 @@ func (dNode DiscriminationNode) Unify(inputFormula AST.Form) (bool, []subst.Mixe
 		possibleMatchTerm := subst.TransformPred(possibleMatch.getPred())              // Pred -> Term for Robinson
 		finalSubst := subst.AddUnification(possibleMatchTerm, queryTerm, initialSubst) // Call Robinson
 
-		// fmt.Println("Unify initialSubst", initialSubst.ToString())
-		// fmt.Println("Unify possibleMatchTerm", possibleMatchTerm.ToString())
-		// fmt.Println("Unify finalSubst", finalSubst.ToString())
-
 		if finalSubst.Equals(subst.Failure()) {
 			fmt.Println("-------------------------")
 			fmt.Println("Substitution FAILURE")
@@ -613,30 +585,13 @@ func (dNode DiscriminationNode) UnifyTerm(t AST.Term) (bool, []subst.MixedTermSu
 	var found bool
 
 	seq := parseTerm(t).GetSlice()
-
-	// for _, elem := range seq {
-	// 	fmt.Println("seq", elem.getSymbol().ToString())
-	// }
-
 	candidates := dNode.retrieveRec(seq, subst.MakeEmptySubstitution())
-
-	// for _, elem := range candidates {
-	// 	fmt.Println("element", elem.getPred().ToString())
-	// }
 
 	for _, possibleMatch := range candidates {
 
-		// fmt.Println("Candidat", possibleMatch.Pred.ToString(), possibleMatch.Subs.ToString())
-
 		candidateTerm := subst.TransformPred(possibleMatch.getPred())
 		emptySubst := subst.Substitutions{}
-		// fmt.Println("=> candidateTerm : ", candidateTerm.ToString())
-		// fmt.Println("=> t : ", t.ToString())
-		// fmt.Println("=> EmptySubset : ", emptySubst.ToString())
-
 		finalSubst := subst.AddUnification(t, candidateTerm, emptySubst) // Call Robinson
-
-		// fmt.Println("finalSubst", finalSubst.ToString())
 
 		if !finalSubst.Equals(subst.Failure()) {
 			found = true

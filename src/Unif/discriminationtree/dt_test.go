@@ -1196,11 +1196,3 @@ func TestMakeDataStruct(t *testing.T) {
 	resultTree2.Print()
 
 }
-
-func TestMaVieEllePueSaMere(t *testing.T) {
-
-	metaIdentication(pax)
-
-	metaIdentication(pabc)
-
-}
