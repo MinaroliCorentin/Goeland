@@ -86,6 +86,11 @@ var fa AST.Fun
 var fb AST.Fun
 var fc AST.Fun
 
+var gax AST.Fun
+var gxb AST.Fun
+var gyb AST.Fun
+var gab AST.Fun
+var gxc AST.Fun
 var ggx AST.Fun
 var gga AST.Fun
 var gfy AST.Fun
@@ -105,34 +110,16 @@ var f_fxy_z AST.Fun
 var f_x_fyz AST.Fun
 var f_fab_c AST.Fun
 var f_a_fbc AST.Fun
-
-// // Equalities
-// var eq_x_y AST.Pred
-// var eq_x_a AST.Pred
-// var eq_y_a AST.Pred
-// var eq_z1_c1 AST.Pred
-// var eq_z1_c2 AST.Pred
-// var eq_z2_c1 AST.Pred
-// var eq_z3_c1 AST.Pred
-// var eq_gx_fx AST.Pred
-// var eq_ggx_fa AST.Pred
-// var eq_gfy_y AST.Pred
-// var eq_fa_a AST.Pred
-// var eq_b_c AST.Pred
-// var eq_a_b AST.Pred
-// var eq_a_c AST.Pred
-// var eq_b_d AST.Pred
-// var eq_x_d AST.Pred
-
-// // Inequalites
-// var neq_x_a AST.Form
-// var neq_a_b AST.Form
-// var neq_a_d AST.Form
-// var neq_gggx_x AST.Form
-// var neq_fx_a AST.Form
-// var neq_fx_x AST.Form
-// var neq_fab_fcd AST.Form
-// var neq_fb_fc AST.Form
+var f_x_x AST.Fun
+var f_y_y AST.Fun
+var f_z_z AST.Fun
+var f_gax_c AST.Fun
+var f_gxb_y AST.Fun
+var f_gyb_z AST.Fun
+var f_gab_a AST.Fun
+var f_gxc_b AST.Fun
+var f_z_y AST.Fun
+var f_x_y AST.Fun
 
 // Form
 var pggab AST.Form
@@ -154,9 +141,20 @@ var px AST.Form
 var py AST.Form
 var pxc AST.Form
 var pfx AST.Form
+var pfy AST.Form
 var pafx AST.Form
 var pafy AST.Form
 var pfac AST.Form
+
+var pfgaxc AST.Form
+var pfgxby AST.Form
+var pfgybz AST.Form
+var pfgaba AST.Form
+var pfgxcb AST.Form
+var pfzy AST.Form
+var pfxy AST.Form
+var pfxx AST.Form
+var pfzz AST.Form
 
 var not_pcd AST.Form
 
@@ -209,6 +207,12 @@ func initTestVariable() {
 	fyz = AST.MakerFun(f_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](y, z))
 	ffx = AST.MakerFun(f_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](fx))
 
+	gax = AST.MakerFun(g_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](a, x))
+	gxb = AST.MakerFun(g_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](x, b))
+	gyb = AST.MakerFun(g_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](y, b))
+	gab = AST.MakerFun(g_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](a, b))
+	gxc = AST.MakerFun(g_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](x, c))
+
 	fxa = AST.MakerFun(f_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](x, a))
 	fay = AST.MakerFun(f_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](a, y))
 	fab = AST.MakerFun(f_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](a, b))
@@ -219,6 +223,17 @@ func initTestVariable() {
 	f_x_fyz = AST.MakerFun(f_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](x, fyz))
 	f_fab_c = AST.MakerFun(f_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](fab, c))
 	f_a_fbc = AST.MakerFun(f_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](a, fbc))
+	f_x_x = AST.MakerFun(f_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](x, x))
+	f_y_y = AST.MakerFun(f_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](y, y))
+	f_z_z = AST.MakerFun(f_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](z, z))
+	f_gax_c = AST.MakerFun(f_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](gax, c))
+	f_gxb_y = AST.MakerFun(f_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](gxb, y))
+	f_gyb_z = AST.MakerFun(f_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](gyb, z))
+	f_gab_a = AST.MakerFun(f_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](gab, a))
+
+	f_gxc_b = AST.MakerFun(f_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](gxc, b))
+	f_z_y = AST.MakerFun(f_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](z, y))
+	f_x_y = AST.MakerFun(f_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](x, y))
 
 	// Predicates
 	pggab = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](gga, b))
@@ -236,9 +251,21 @@ func initTestVariable() {
 	py = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](y))
 	pxc = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](x, c))
 	pfx = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](fx))
+	pfy = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](fy))
 	pafy = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](a, fy))
 	pafx = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](a, fx))
 	pfac = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](fa, c))
+
+	pfgaxc = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](f_gax_c))
+	pfgxby = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](f_gxb_y))
+	pfgybz = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](f_gyb_z))
+	pfgaba = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](f_gab_a))
+	pfgxcb = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](f_gxc_b))
+	pfzy = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](f_z_y))
+	pfxy = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](f_x_y))
+	pfxx = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](f_x_x))
+	pfzz = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](f_z_z))
+
 	not_pcd = AST.MakerNot(AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](c, d)))
 	pa = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](a))
 	pb = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](b))
@@ -340,6 +367,7 @@ func TestInsert(t *testing.T) {
 	tree = tree.Insert(pba.(AST.Pred))
 	tree = tree.Insert(pab.(AST.Pred))
 	tree = tree.Insert(pafx.(AST.Pred))
+	tree = tree.Insert(pafy.(AST.Pred))
 
 	fmt.Println("-------------PANIC EXPECTED------------- ")
 	func() {
@@ -361,6 +389,15 @@ func TestInsert(t *testing.T) {
 	tree2 := NewNode()
 	tree2 = tree2.Insert(pfx.(AST.Pred))
 	tree2.Print()
+
+	println()
+	println()
+	println()
+
+	tree3 := NewNode()
+	tree3 = tree3.Insert(pfx.(AST.Pred))
+	tree3 = tree3.Insert(pfy.(AST.Pred))
+	tree3.Print()
 
 }
 
@@ -400,6 +437,22 @@ func TestPrintDoublonCheck(t *testing.T) {
 
 }
 
+func TestPrintHugeTree(t *testing.T) {
+
+	tree := NewNode()
+	tree = tree.Insert(pfgaxc.(AST.Pred))
+	tree = tree.Insert(pfgxby.(AST.Pred))
+	tree = tree.Insert(pfgybz.(AST.Pred))
+	tree = tree.Insert(pfgaba.(AST.Pred))
+	tree = tree.Insert(pfgxcb.(AST.Pred))
+	tree = tree.Insert(pfzy.(AST.Pred))
+	tree = tree.Insert(pfxy.(AST.Pred))
+	tree = tree.Insert(pfxx.(AST.Pred))
+	tree = tree.Insert(pfzz.(AST.Pred))
+	tree.Print()
+
+}
+
 func TestParseFormula(t *testing.T) {
 
 	tmp := parseFormula(pax)
@@ -416,18 +469,22 @@ func TestParseFormula(t *testing.T) {
 			if value.GetArity() != 0 {
 				t.Fatalf("Arrity Error")
 			}
-		} else if value.getSymbol().ToString() == "X" {
+		} else if value.getSymbol().ToString() == "v1" {
 			if value.GetArity() != 0 {
 				t.Fatalf("Arrity Error")
 			}
 		} else {
-			t.Fatalf("Supposed to have only \"P\", \"a\" or \"X\" ")
+			t.Fatalf("Supposed to have only \"P\", \"a\" or \"v1\" ")
 		}
 	}
 
-	tmp2 := parseFormula(not_pac)
-	for _, value := range tmp2.GetSlice() {
-		fmt.Println(value.symbol.ToMeta())
+	tmp2 := parseFormula(pay)
+	for _, elem := range tmp2.GetSlice() {
+		tmp.Append(elem)
+	}
+
+	for _, elem := range tmp.GetSlice() {
+		fmt.Println("elem", elem.getSymbol().ToString())
 	}
 
 }
@@ -438,7 +495,7 @@ func TestParseTerm(t *testing.T) {
 	var tmp2 []string
 	var tmp3 []string
 
-	seqList := parseTerm(fxy)
+	seqList := parseTerm(fxy, nil)
 	seq := seqList.GetSlice()
 	if len(seq) != 3 {
 		t.Fatalf("Got %d elements", len(seq))
@@ -448,7 +505,7 @@ func TestParseTerm(t *testing.T) {
 	}
 	fmt.Printf(" Sequence Parsed : % v\n", tmp)
 
-	seqList = parseTerm(f_fxy_z)
+	seqList = parseTerm(f_fxy_z, nil)
 	seq = seqList.GetSlice()
 	if len(seq) != 5 {
 		t.Fatalf("Got %d elements", len(seq))
@@ -458,7 +515,7 @@ func TestParseTerm(t *testing.T) {
 	}
 	fmt.Printf(" Sequence Parsed : %v\n", tmp2)
 
-	seqList = parseTerm(f_x_fyz)
+	seqList = parseTerm(f_x_fyz, nil)
 	seq = seqList.GetSlice()
 	if len(seq) != 5 {
 		t.Fatalf("Got %d elements", len(seq))
@@ -539,31 +596,31 @@ func TestEquals(t *testing.T) {
 
 func TestGetSubTermLength(t *testing.T) {
 
-	seq := parseTerm(ggx).GetSlice()
+	seq := parseTerm(ggx, nil).GetSlice()
 	var1 := (GetSubTermLength(seq))
 	if var1 != 3 {
 		t.Fatalf("Error SubTerLength with 2functions & 1Meta ")
 	}
 
-	seq2 := parseTerm(fxy).GetSlice()
+	seq2 := parseTerm(fxy, nil).GetSlice()
 	var2 := (GetSubTermLength(seq2))
 	if var2 != 3 {
 		t.Fatalf("Error SubTerLength with 1function & 2Meta")
 	}
 
-	seq3 := parseTerm(gx).GetSlice()
+	seq3 := parseTerm(gx, nil).GetSlice()
 	var3 := (GetSubTermLength(seq3))
 	if var3 != 2 {
 		t.Fatalf("Error SubTerLength with 1function & 1Meta")
 	}
 
-	seq4 := parseTerm(ga).GetSlice()
+	seq4 := parseTerm(ga, nil).GetSlice()
 	var4 := (GetSubTermLength(seq4))
 	if var4 != 2 {
 		t.Fatalf("Error SubTerLength with 1function & 1cst")
 	}
 
-	seq5 := parseTerm(gggx).GetSlice()
+	seq5 := parseTerm(gggx, nil).GetSlice()
 	var5 := (GetSubTermLength(seq5))
 	if var5 != 4 {
 		t.Fatalf("Error SubTerLength with 1function & 3Meta")
@@ -1194,5 +1251,14 @@ func TestMakeDataStruct(t *testing.T) {
 
 	resultTree1.Print()
 	resultTree2.Print()
+
+}
+
+func TestCaMarchePas(t *testing.T) {
+
+	tree3 := NewNode()
+	tree3 = tree3.Insert(pfx.(AST.Pred))
+	tree3 = tree3.Insert(pfy.(AST.Pred))
+	tree3.Print()
 
 }

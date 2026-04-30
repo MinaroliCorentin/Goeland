@@ -181,17 +181,19 @@ func MakeCandidat(p AST.Pred, sub subst.Substitutions) CandidatResult {
 /*********** Parse ***********/
 /*****************************/
 
-// Parse a AST.Form formula to a List of SymbolType.
-// e.g AST.Form == pax     => [p(arity :2),a(arity:0), x(arity:0)]
 func parseFormula(formula AST.Form) Lib.List[SymbolType] {
 	res := Lib.NewList[SymbolType]()
-	// The formula has to be a predicate
+	ctx := NewContext() // Context gonna start all the transformations ( X == v1, Y == v2, ...)
+
 	switch formula_type := formula.(type) {
 	case AST.Pred:
+		// Add First element ( Predicat )
 		first_element := makeSymbolType(formula_type.GetID(), formula_type.GetArgs().Len())
 		res.Append(first_element)
+
+		// Call the parse on each element of the predicat
 		for _, arg := range formula_type.GetArgs().GetSlice() {
-			arg_list := parseTerm(arg)
+			arg_list := parseTerm(arg, ctx)
 			res.Append(arg_list.GetSlice()...)
 		}
 		return res
@@ -200,23 +202,37 @@ func parseFormula(formula AST.Form) Lib.List[SymbolType] {
 	}
 }
 
-// Parser for a formula : f(x,y) -> [f,x,y], a -> [a], x -> [x]
-func parseTerm(t AST.Term) Lib.List[SymbolType] {
+func parseTerm(t AST.Term, ctx *NormalizerContext) Lib.List[SymbolType] {
 	res := Lib.NewList[SymbolType]()
-	// The formula has to be a predicate
 
 	switch term := t.(type) {
-	case AST.Fun: // Add all the args of the function
-		first_element := makeSymbolType(term.GetID(), term.GetArgs().Len()) // Add the node before recursive call
+
+	// if term is a function or cst, add and call his args
+	case AST.Fun:
+		first_element := makeSymbolType(term.GetID(), term.GetArgs().Len())
 		res.Append(first_element)
 		for _, arg := range term.GetArgs().GetSlice() {
-			res.Append(parseTerm(arg).GetSlice()...)
+			res.Append(parseTerm(arg, ctx).GetSlice()...)
 		}
-	case AST.Meta:
-		res.Append(makeSymbolType(term, 0))
-	}
 
+	// Case meta, we have to transform it
+	case AST.Meta:
+
+		originalName := term.GetName()         // Name of the meta
+		_, exists := ctx.mapping[originalName] // Contains
+		if !exists {                           // If the meta is unknow
+			ctx.counter++
+			newName := fmt.Sprintf("v%d", ctx.counter) // v + int. e.g  v1,v2,v3,...
+			fakeMeta := AST.MakeMeta(ctx.counter, 0, newName, 0, term.GetTy())
+			ctx.mapping[originalName] = fakeMeta // Update the mapping : X -> v1 or Y -> v2 .... )
+		}
+
+		normalizedMeta := ctx.mapping[originalName]   // Return the transformed name association to the originalName before adding
+		res.Append(makeSymbolType(normalizedMeta, 0)) // Add the new Meta to the return slice
+
+	}
 	return res
+
 }
 
 /*****************************/
@@ -408,7 +424,7 @@ func (dNode DiscriminationNode) retrieveRec(seq []SymbolType, currentEnv subst.S
 				if skip == 1 {
 					currentSub := subst.MakeSubstitution(symChild.ToMeta(), symQuery.getSymbol())
 					tmp3 := subst.Substitutions{currentSub}
-					// Ok Commat Idoms doesn't works so we use this
+					// Ok Commat Idoms doesn't works because ??????????????????????????????
 					if len(currentEnv) == 0 {
 						mergedSub = tmp3
 					} else {
@@ -429,10 +445,10 @@ func (dNode DiscriminationNode) retrieveRec(seq []SymbolType, currentEnv subst.S
 
 			// First element is a meta
 		} else if symQuery.getSymbol() != nil && symQuery.getSymbol().IsMeta() && !isExactMatch {
+
 			// Reverse of the situation with the previous if.
 			// The symbol from seq ( parameter of this function ) is a Meta, meaning we skip the current term of dNode because it will be unify
 			// e.g dNode = a, seq = [x] so a |-> x and we got to the next term of the dNode
-
 			var mergedSub subst.Substitutions
 			if child.GetArity() == 0 {
 				currentSub := subst.MakeSubstitution(symQuery.getSymbol().ToMeta(), symChild) // Create a new substitution
@@ -475,7 +491,6 @@ func (dNode DiscriminationNode) displayRec(indent int) {
 	if indent == 2 {
 		prefix = strings.Repeat("[ROOT]", indent-1) + " |-- "
 	}
-
 	fmt.Printf("%s%s arity : %d\n", prefix, dNode.getSymbol().ToString(), dNode.GetArity())
 
 	if dNode.leafFor.Len() > 0 {
@@ -484,7 +499,6 @@ func (dNode DiscriminationNode) displayRec(indent int) {
 			fmt.Printf("%s%s]\n", leafPrefix, pred.ToString())
 		}
 	}
-
 	for _, child := range dNode.children.GetSlice() {
 		child.displayRec(indent + 1)
 	}
@@ -511,6 +525,7 @@ func (dNode DiscriminationNode) MakeDataStruct(formulas Lib.List[AST.Form], is_p
 
 	form := Lib.NewList[AST.Form]()
 
+	// fixme: why are we doing this here?
 	for _, f := range formulas.GetSlice() {
 		switch nf := f.(type) {
 		case AST.Pred:
@@ -584,7 +599,7 @@ func (dNode DiscriminationNode) UnifyTerm(t AST.Term) (bool, []subst.MixedTermSu
 	var mixed []subst.MixedTermSubstitutions
 	var found bool
 
-	seq := parseTerm(t).GetSlice()
+	seq := parseTerm(t, nil).GetSlice()
 	candidates := dNode.retrieveRec(seq, subst.MakeEmptySubstitution())
 
 	for _, possibleMatch := range candidates {
