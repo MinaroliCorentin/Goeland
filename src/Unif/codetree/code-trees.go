@@ -41,7 +41,7 @@ import (
 
 	"github.com/GoelandProver/Goeland/AST"
 	"github.com/GoelandProver/Goeland/Lib"
-	"github.com/GoelandProver/Goeland/Unif/substitution"
+	subst "github.com/GoelandProver/Goeland/Unif/substitution"
 )
 
 /*************************/
@@ -100,7 +100,6 @@ func (n Node) MakeDataStruct(fl Lib.List[AST.Form], is_pos bool) subst.DataStruc
 func (n Node) Copy() subst.DataStructure {
 	return Node{n.getValue(), n.getChildren(), n.leafFor.Copy(Lib.EitherCpy[AST.Term, AST.Form])}
 }
-
 
 /********************/
 /* Helper functions */

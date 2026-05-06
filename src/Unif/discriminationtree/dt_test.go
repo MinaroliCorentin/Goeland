@@ -129,6 +129,9 @@ var pb AST.Form
 
 var not_pc AST.Form
 var pab AST.Form
+var paa AST.Form
+var pbb AST.Form
+
 var pabc AST.Form
 var pba AST.Form
 
@@ -240,6 +243,9 @@ func initTestVariable() {
 	not_pac = AST.MakerNot(AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](a, c)))
 	not_pc = AST.MakerNot(AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](c)))
 	pab = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](a, b))
+	paa = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](a, a))
+	pbb = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](b, b))
+
 	pabc = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](a, b, c))
 	pba = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](b, a))
 	pca = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](c, a))
@@ -453,6 +459,19 @@ func TestPrintHugeTree(t *testing.T) {
 
 }
 
+func TestTmp(t *testing.T) {
+	tree := NewNode()
+	tree = tree.Insert(pab.(AST.Pred))
+	tree = tree.Insert(paa.(AST.Pred))
+	_, mix := tree.Unify(pay.(AST.Pred))
+	for _, elem := range mix {
+		fmt.Println(elem.ToString())
+	}
+
+	fmt.Println(len(mix))
+
+}
+
 func TestParseFormula(t *testing.T) {
 
 	tmp := parseFormula(pax)
@@ -494,8 +513,11 @@ func TestParseTerm(t *testing.T) {
 	var tmp []string
 	var tmp2 []string
 	var tmp3 []string
+	tmpContext := NewContext()
+	tmpContext2 := NewContext()
+	tmpContext3 := NewContext()
 
-	seqList := parseTerm(fxy, nil)
+	seqList := parseTerm(fxy, tmpContext)
 	seq := seqList.GetSlice()
 	if len(seq) != 3 {
 		t.Fatalf("Got %d elements", len(seq))
@@ -505,7 +527,7 @@ func TestParseTerm(t *testing.T) {
 	}
 	fmt.Printf(" Sequence Parsed : % v\n", tmp)
 
-	seqList = parseTerm(f_fxy_z, nil)
+	seqList = parseTerm(f_fxy_z, tmpContext2)
 	seq = seqList.GetSlice()
 	if len(seq) != 5 {
 		t.Fatalf("Got %d elements", len(seq))
@@ -515,7 +537,7 @@ func TestParseTerm(t *testing.T) {
 	}
 	fmt.Printf(" Sequence Parsed : %v\n", tmp2)
 
-	seqList = parseTerm(f_x_fyz, nil)
+	seqList = parseTerm(f_x_fyz, tmpContext3)
 	seq = seqList.GetSlice()
 	if len(seq) != 5 {
 		t.Fatalf("Got %d elements", len(seq))
@@ -547,12 +569,25 @@ func TestRetrieve(t *testing.T) {
 	}
 	fmt.Println()
 
-	tree2 := NewNode()
-	tree2 = tree2.Insert(pax.(AST.Pred))
-	results2 := tree2.RetrieveUnifiables(pba)
-	if len(results2) != 0 {
-		t.Fatalf(" Not supposed to have Unifiable element")
-	}
+	fmt.Println("-----EXPECTED PANIC-----")
+	func() {
+		defer func() {
+			if err := recover(); err != nil {
+				log.Println("panic occurred:", err)
+			} else {
+				fmt.Println("Supposed to throw a Error")
+			}
+		}()
+
+		tree2 := NewNode()
+		tree2 = tree2.Insert(pax.(AST.Pred))
+		results2 := tree2.RetrieveUnifiables(pba)
+		if len(results2) != 0 {
+			t.Fatalf(" Not supposed to have Unifiable element")
+		}
+
+	}()
+	fmt.Println("---END EXPECTED PANIC---")
 
 	fmt.Println("----- EMPTY -----")
 	fmt.Println("----- EMPTY -----")
@@ -596,31 +631,37 @@ func TestEquals(t *testing.T) {
 
 func TestGetSubTermLength(t *testing.T) {
 
-	seq := parseTerm(ggx, nil).GetSlice()
+	tmpContext1 := NewContext()
+	tmpContext2 := NewContext()
+	tmpContext3 := NewContext()
+	tmpContext4 := NewContext()
+	tmpContext5 := NewContext()
+
+	seq := parseTerm(ggx, tmpContext1).GetSlice()
 	var1 := (GetSubTermLength(seq))
 	if var1 != 3 {
 		t.Fatalf("Error SubTerLength with 2functions & 1Meta ")
 	}
 
-	seq2 := parseTerm(fxy, nil).GetSlice()
+	seq2 := parseTerm(fxy, tmpContext2).GetSlice()
 	var2 := (GetSubTermLength(seq2))
 	if var2 != 3 {
 		t.Fatalf("Error SubTerLength with 1function & 2Meta")
 	}
 
-	seq3 := parseTerm(gx, nil).GetSlice()
+	seq3 := parseTerm(gx, tmpContext3).GetSlice()
 	var3 := (GetSubTermLength(seq3))
 	if var3 != 2 {
 		t.Fatalf("Error SubTerLength with 1function & 1Meta")
 	}
 
-	seq4 := parseTerm(ga, nil).GetSlice()
+	seq4 := parseTerm(ga, tmpContext4).GetSlice()
 	var4 := (GetSubTermLength(seq4))
 	if var4 != 2 {
 		t.Fatalf("Error SubTerLength with 1function & 1cst")
 	}
 
-	seq5 := parseTerm(gggx, nil).GetSlice()
+	seq5 := parseTerm(gggx, tmpContext5).GetSlice()
 	var5 := (GetSubTermLength(seq5))
 	if var5 != 4 {
 		t.Fatalf("Error SubTerLength with 1function & 3Meta")
@@ -1257,8 +1298,13 @@ func TestMakeDataStruct(t *testing.T) {
 func TestCaMarchePas(t *testing.T) {
 
 	tree3 := NewNode()
-	tree3 = tree3.Insert(pfx.(AST.Pred))
-	tree3 = tree3.Insert(pfy.(AST.Pred))
+	tree3 = tree3.Insert(paa.(AST.Pred))
+	tree3 = tree3.Insert(pbb.(AST.Pred))
+	_, mix := tree3.Unify(pxx.(AST.Pred))
+	for _, elem := range mix {
+		fmt.Println(elem.ToString())
+	}
+
 	tree3.Print()
 
 }
