@@ -39,12 +39,19 @@ package discriminationtree
 import (
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/GoelandProver/Goeland/AST"
 	"github.com/GoelandProver/Goeland/Glob"
 	"github.com/GoelandProver/Goeland/Lib"
 	subst "github.com/GoelandProver/Goeland/Unif/substitution"
 )
+
+var debug Glob.Debugger
+
+func InitDebugger() {
+	debug = Glob.CreateDebugger("unif")
+}
 
 /*************************/
 /* Structures definition */
@@ -183,7 +190,7 @@ func MakeCandidat(p AST.Pred, sub subst.Substitutions) CandidatResult {
 
 func parseFormula(formula AST.Form) Lib.List[SymbolType] {
 	res := Lib.NewList[SymbolType]()
-	ctx := NewContext() // Context gonna start all the transformations ( X == v1, Y == v2, ...)
+	ctx := NewContext() // Context gonna store all the transformations ( X == v1, Y == v2, ...)
 
 	switch formula_type := formula.(type) {
 	case AST.Pred:
@@ -295,7 +302,7 @@ func (dNode DiscriminationNode) insertRec(seq Lib.List[SymbolType], originalTerm
 	// End of recursion, time to insert
 	if seq.Len() == 0 {
 		Exist := false
-		for _, pred := range dNode.leafFor.GetSlice() {
+		for _, pred := range dNode.getLeafFor().GetSlice() {
 			if pred.Equals(originalTerm) {
 				Exist = true
 				break
@@ -310,7 +317,7 @@ func (dNode DiscriminationNode) insertRec(seq Lib.List[SymbolType], originalTerm
 	// Create Symbol
 	sym := seq.At(0)
 	foundIndex := -1
-	childrenSlice := dNode.children.GetSlice()
+	childrenSlice := dNode.getChildren().GetSlice()
 
 	// Looking for already existing child
 	var ok bool
@@ -355,7 +362,7 @@ func GetSubTermLength(seq []SymbolType) int {
 
 	for needed > 0 && index < len(seq) {
 		sym := seq[index]
-		needed = needed - 1 + sym.arity // If Arity == 0 ( Meta ) end this loop, else add the arity of the form/func/...
+		needed = needed - 1 + sym.GetArity() // If Arity == 0 ( Meta ) end this loop, else add the arity of the form/func/...
 		index++
 	}
 	return index
@@ -371,12 +378,88 @@ func (dNode DiscriminationNode) SkipTreeTermAndContinue(needed int, remainingQue
 		return dNode.retrieveRec(remainingQuery, substitutions)
 	}
 
-	for _, child := range dNode.children.GetSlice() {
+	for _, child := range dNode.getChildren().GetSlice() {
 		newNeeded := needed - 1 + child.GetArity() // 0 if Meta, Else Arity of the Term
 		matches := child.SkipTreeTermAndContinue(newNeeded, remainingQuery, substitutions)
 		subs = append(subs, matches...)
 	}
 	return subs
+
+}
+
+func retrieveCase(seq []SymbolType, currentEnv subst.Substitutions, child DiscriminationNode, ch chan<- []CandidatResult, wg *sync.WaitGroup) {
+
+	defer wg.Done()
+	symQuery := seq[0] // First Element
+
+	isExactMatch := child.symbol.Equals(symQuery)
+	if isExactMatch { // Exact Match
+		matches := child.retrieveRec(seq[1:], currentEnv) // Exact Match -> Search next element
+		ch <- matches
+	}
+
+	symChild := child.getSymbol() // child is  meta or cst
+
+	// Case the child is a AST.Meta
+	if symChild != nil && symChild.IsMeta() && !isExactMatch {
+
+		// We noticed that the term of the dNode is a Meta
+		// Meaning that we can skip the current term of the seq ( paramater of this function ) bc it will be unify with the current term
+		// e.g dNode = x, seq = [f,a] so [f,a] |-> x and we skip 2 because GetSbTermLength of [f,a] is 2
+		skip := GetSubTermLength(seq)
+
+		if skip <= len(seq) { // Security to prevent segfault
+
+			var mergedSub subst.Substitutions
+			if skip == 1 {
+				currentSub := subst.MakeSubstitution(symChild.ToMeta(), symQuery.getSymbol())
+				tmp3 := subst.Substitutions{currentSub}
+				// Ok Commat Idoms doesn't works because ??????????????????????????????
+				if len(currentEnv) == 0 {
+					mergedSub = tmp3
+				} else {
+					mergedSub, _ = subst.MergeSubstitutions(currentEnv, tmp3)
+				}
+			} else {
+				mergedSub = currentEnv
+			}
+
+			// Verify
+			if !mergedSub.Equals(subst.Failure()) {
+				matches := child.retrieveRec(seq[skip:], mergedSub)
+				ch <- matches
+			}
+
+		}
+
+		// First element is a meta
+	} else if symQuery.getSymbol() != nil && symQuery.getSymbol().IsMeta() && !isExactMatch {
+		// Reverse of the situation with the previous if.
+		// The symbol from seq ( parameter of this function ) is a Meta, meaning we skip the current term of dNode because it will be unify
+		// e.g dNode = a, seq = [x] so a |-> x and we got to the next term of the dNode
+
+		var mergedSub subst.Substitutions
+
+		if child.GetArity() == 0 {
+			currentSub := subst.MakeSubstitution(symQuery.getSymbol().ToMeta(), symChild) // Create a new substitution
+			tmp3 := subst.Substitutions{currentSub}
+			if len(currentEnv) == 0 {
+				mergedSub = tmp3
+			} else {
+				mergedSub, _ = subst.MergeSubstitutions(currentEnv, tmp3)
+			}
+		} else {
+			mergedSub = currentEnv
+		}
+
+		if !mergedSub.Equals(subst.Failure()) {
+			childResults := child.SkipTreeTermAndContinue(child.GetArity(), seq[1:], mergedSub)
+			ch <- childResults
+		}
+
+	} else {
+		// No recursive call or return
+	}
 
 }
 
@@ -388,89 +471,38 @@ func (dNode DiscriminationNode) RetrieveUnifiables(t AST.Form) []CandidatResult 
 
 func (dNode DiscriminationNode) retrieveRec(seq []SymbolType, currentEnv subst.Substitutions) []CandidatResult {
 
+	ch := make(chan []CandidatResult)
 	var results []CandidatResult
 
+	var wg sync.WaitGroup
+
 	if len(seq) == 0 { // End of recursion
-		for _, p := range dNode.leafFor.GetSlice() {
+
+		for _, p := range dNode.getLeafFor().GetSlice() {
 			results = append(results, MakeCandidat(p, currentEnv))
 		}
 		return results
 	}
 
-	symQuery := seq[0] // First Element
-
+	// Work goroutine
 	for _, child := range dNode.children.GetSlice() {
 
-		isExactMatch := child.symbol.Equals(symQuery)
-		if isExactMatch { // Exact Match
-			matches := child.retrieveRec(seq[1:], currentEnv) // Exact Match -> Search next element
-			results = append(results, matches...)
-		}
-
-		// Depending of the symbol of the child, there is 2 possilities, either the child is a meta, ether the sym is a meta
-		symChild := child.getSymbol()
-
-		// Case the child is a AST.Meta
-		if symChild != nil && symChild.IsMeta() && !isExactMatch {
-
-			// We noticed that the term of the dNode is a Meta
-			// Meaning that we can skip the current term of the seq ( paramater of this function ) bc it will be unify with the current term
-			// e.g dNode = x, seq = [f,a] so [f,a] |-> x and we skip 2 because GetSbTermLength of [f,a] is 2
-			skip := GetSubTermLength(seq)
-
-			if skip <= len(seq) { // Security to prevent segfault
-
-				var mergedSub subst.Substitutions
-				if skip == 1 {
-					currentSub := subst.MakeSubstitution(symChild.ToMeta(), symQuery.getSymbol())
-					tmp3 := subst.Substitutions{currentSub}
-					// Ok Commat Idoms doesn't works because ??????????????????????????????
-					if len(currentEnv) == 0 {
-						mergedSub = tmp3
-					} else {
-						mergedSub, _ = subst.MergeSubstitutions(currentEnv, tmp3)
-					}
-
-				} else {
-					mergedSub = currentEnv
-				}
-
-				// Verify
-				if !mergedSub.Equals(subst.Failure()) {
-					matches := child.retrieveRec(seq[skip:], mergedSub)
-					results = append(results, matches...)
-				}
-
-			}
-
-			// First element is a meta
-		} else if symQuery.getSymbol() != nil && symQuery.getSymbol().IsMeta() && !isExactMatch {
-
-			// Reverse of the situation with the previous if.
-			// The symbol from seq ( parameter of this function ) is a Meta, meaning we skip the current term of dNode because it will be unify
-			// e.g dNode = a, seq = [x] so a |-> x and we got to the next term of the dNode
-			var mergedSub subst.Substitutions
-			if child.GetArity() == 0 {
-				currentSub := subst.MakeSubstitution(symQuery.getSymbol().ToMeta(), symChild) // Create a new substitution
-				tmp3 := subst.Substitutions{currentSub}
-				if len(currentEnv) == 0 {
-					mergedSub = tmp3
-				} else {
-					mergedSub, _ = subst.MergeSubstitutions(currentEnv, tmp3)
-				}
-			} else {
-				mergedSub = currentEnv
-			}
-
-			if !mergedSub.Equals(subst.Failure()) {
-				childResults := child.SkipTreeTermAndContinue(child.GetArity(), seq[1:], mergedSub)
-				results = append(results, childResults...)
-			}
-
-		} else {
-			continue
-		}
+		wg.Add(1) // Create exactly 1 goroutine
+		go retrieveCase(seq, currentEnv, child, ch, &wg)
 	}
+
+	// Main goroutine waiting until all the goroutine stop
+	go func() {
+		wg.Wait()
+		close(ch)
+	}()
+
+	for matches := range ch {
+
+		results = append(results, matches...)
+
+	}
+
 	return results
 }
 
@@ -479,7 +511,7 @@ func (dNode DiscriminationNode) retrieveRec(seq []SymbolType, currentEnv subst.S
 /*****************************/
 
 func (dNode DiscriminationNode) Print() {
-	for _, child := range dNode.children.GetSlice() {
+	for _, child := range dNode.getChildren().GetSlice() {
 		child.displayRec(2) // Magic Number (Set the indent but bellow 2 the display is horrible and above 2 is bugget for ??? reason)
 	}
 }
@@ -491,15 +523,19 @@ func (dNode DiscriminationNode) displayRec(indent int) {
 	if indent == 2 {
 		prefix = strings.Repeat("[ROOT]", indent-1) + " |-- "
 	}
-	fmt.Printf("%s%s arity : %d\n", prefix, dNode.getSymbol().ToString(), dNode.GetArity())
+	debug(Lib.MkLazy(func() string {
+		return fmt.Sprintf("%s%s arity : %d\n", prefix, dNode.getSymbol().ToString(), dNode.GetArity())
+	}))
 
-	if dNode.leafFor.Len() > 0 {
+	if dNode.getLeafFor().Len() > 0 {
 		leafPrefix := strings.Repeat("    ", indent) + " [=> "
-		for _, pred := range dNode.leafFor.GetSlice() {
-			fmt.Printf("%s%s]\n", leafPrefix, pred.ToString())
+		for _, pred := range dNode.getLeafFor().GetSlice() {
+			debug(Lib.MkLazy(func() string {
+				return fmt.Sprintf("%s%s]\n", leafPrefix, pred.ToString())
+			}))
 		}
 	}
-	for _, child := range dNode.children.GetSlice() {
+	for _, child := range dNode.getChildren().GetSlice() {
 		child.displayRec(indent + 1)
 	}
 }
@@ -511,13 +547,17 @@ func (dNode DiscriminationNode) IsEmpty() bool {
 func (dNode DiscriminationNode) Copy() subst.DataStructure {
 
 	newChildMaster := Lib.NewList[DiscriminationNode]()
-	for _, child := range dNode.children.GetSlice() {
+	for _, child := range dNode.getChildren().GetSlice() {
 		newChild := child.Copy().(DiscriminationNode)
 		newChildMaster.Append(newChild)
 	}
 
-	newLeafFor := Lib.ListCpy(dNode.leafFor)
-	return DiscriminationNode{symbol: dNode.symbol, children: newChildMaster, leafFor: newLeafFor}
+	newLeafFor := Lib.ListCpy(dNode.getLeafFor())
+	return DiscriminationNode{
+		symbol:   dNode.symbol,
+		children: newChildMaster,
+		leafFor:  newLeafFor,
+	}
 
 }
 
@@ -525,7 +565,6 @@ func (dNode DiscriminationNode) MakeDataStruct(formulas Lib.List[AST.Form], is_p
 
 	form := Lib.NewList[AST.Form]()
 
-	// fixme: why are we doing this here?
 	for _, f := range formulas.GetSlice() {
 		switch nf := f.(type) {
 		case AST.Pred:
@@ -594,24 +633,25 @@ func (dNode DiscriminationNode) Unify(inputFormula AST.Form) (bool, []subst.Mixe
 	return found, mixed
 }
 
-func (dNode DiscriminationNode) UnifyTerm(t AST.Term) (bool, []subst.MixedTermSubstitutions) {
+func (dNode DiscriminationNode) UnifyTerm(inputTerm AST.Term) (bool, []subst.MixedTermSubstitutions) {
 
 	var mixed []subst.MixedTermSubstitutions
 	var found bool
+	tmpContext := NewContext()
 
-	seq := parseTerm(t, nil).GetSlice()
+	seq := parseTerm(inputTerm, tmpContext).GetSlice()
 	candidates := dNode.retrieveRec(seq, subst.MakeEmptySubstitution())
 
 	for _, possibleMatch := range candidates {
 
 		candidateTerm := subst.TransformPred(possibleMatch.getPred())
 		emptySubst := subst.Substitutions{}
-		finalSubst := subst.AddUnification(t, candidateTerm, emptySubst) // Call Robinson
+		finalSubst := subst.AddUnification(inputTerm, candidateTerm, emptySubst) // Call Robinson
 
 		if !finalSubst.Equals(subst.Failure()) {
 			found = true
 			mixMatch := subst.MixMatchSubstitutions{
-				Tof:   Lib.MkLeft[AST.Term, AST.Form](t),
+				Tof:   Lib.MkLeft[AST.Term, AST.Form](inputTerm),
 				Subst: finalSubst,
 			}
 			mixed = append(mixed, mixMatch.ToMixedTerm())

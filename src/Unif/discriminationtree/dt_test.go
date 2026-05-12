@@ -46,9 +46,6 @@ import (
 	subst "github.com/GoelandProver/Goeland/Unif/substitution"
 )
 
-// Code trees
-//var tp, tn Unif.DataStructure
-
 // Id
 var p_id AST.Id
 var g_id AST.Id
@@ -165,6 +162,7 @@ var PRa AST.Form
 var PRb AST.Form
 
 func initTestVariable() {
+
 	// Id
 	p_id = AST.MakerId("P")
 	g_id = AST.MakerId("g")
@@ -201,7 +199,6 @@ func initTestVariable() {
 	fa = AST.MakerFun(f_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](a))
 	fb = AST.MakerFun(f_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](b))
 	fc = AST.MakerFun(f_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](c))
-
 	ggx = AST.MakerFun(g_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](gx))
 	gga = AST.MakerFun(g_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](ga))
 	gfy = AST.MakerFun(g_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](fy))
@@ -209,13 +206,11 @@ func initTestVariable() {
 	fxy = AST.MakerFun(f_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](x, y))
 	fyz = AST.MakerFun(f_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](y, z))
 	ffx = AST.MakerFun(f_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](fx))
-
 	gax = AST.MakerFun(g_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](a, x))
 	gxb = AST.MakerFun(g_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](x, b))
 	gyb = AST.MakerFun(g_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](y, b))
 	gab = AST.MakerFun(g_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](a, b))
 	gxc = AST.MakerFun(g_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](x, c))
-
 	fxa = AST.MakerFun(f_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](x, a))
 	fay = AST.MakerFun(f_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](a, y))
 	fab = AST.MakerFun(f_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](a, b))
@@ -233,7 +228,6 @@ func initTestVariable() {
 	f_gxb_y = AST.MakerFun(f_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](gxb, y))
 	f_gyb_z = AST.MakerFun(f_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](gyb, z))
 	f_gab_a = AST.MakerFun(f_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](gab, a))
-
 	f_gxc_b = AST.MakerFun(f_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](gxc, b))
 	f_z_y = AST.MakerFun(f_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](z, y))
 	f_x_y = AST.MakerFun(f_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](x, y))
@@ -245,7 +239,6 @@ func initTestVariable() {
 	pab = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](a, b))
 	paa = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](a, a))
 	pbb = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](b, b))
-
 	pabc = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](a, b, c))
 	pba = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](b, a))
 	pca = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](c, a))
@@ -261,7 +254,6 @@ func initTestVariable() {
 	pafy = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](a, fy))
 	pafx = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](a, fx))
 	pfac = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](fa, c))
-
 	pfgaxc = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](f_gax_c))
 	pfgxby = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](f_gxb_y))
 	pfgybz = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](f_gyb_z))
@@ -271,12 +263,36 @@ func initTestVariable() {
 	pfxy = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](f_x_y))
 	pfxx = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](f_x_x))
 	pfzz = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](f_z_z))
-
 	not_pcd = AST.MakerNot(AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](c, d)))
 	pa = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](a))
 	pb = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](b))
 	PRa = AST.MakerPred(PR_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](a))
 	PRb = AST.MakerPred(PR_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](b))
+}
+
+// Typed Part
+
+var p_typed_id AST.Id
+var a_typed AST.Ty
+var p_typed_pred_A_Z AST.Pred
+var p_typed_pred_int_2 AST.Pred
+
+func initTestVariable2() {
+
+	p_typed_id = AST.MakerId("p")
+
+	a_typed := AST.MkTyMeta("A", -1)
+
+	p_typed_pred_A_Z = AST.MakerPred(p_typed_id,
+		Lib.MkListV(a_typed),
+		Lib.MkListV[AST.Term](AST.MakerMeta("Z", -1, a_typed)),
+	)
+
+	p_typed_pred_int_2 = AST.MakerPred(p_typed_id,
+		Lib.MkListV(AST.MkTyConst("int")),
+		Lib.MkListV[AST.Term](AST.MakerConst(AST.MakerId("2"))),
+	)
+
 }
 
 func initDebuggers() {
@@ -291,6 +307,7 @@ func TestMain(m *testing.M) {
 	AST.Init()
 	Typing.Init()
 	initTestVariable()
+	initTestVariable2()
 	Glob.EnableDebug()
 	code := m.Run()
 	os.Exit(code)
@@ -1295,16 +1312,15 @@ func TestMakeDataStruct(t *testing.T) {
 
 }
 
-func TestCaMarchePas(t *testing.T) {
+func TestToutPlaquerPourDevenirCharpentier(t *testing.T) {
 
-	tree3 := NewNode()
-	tree3 = tree3.Insert(paa.(AST.Pred))
-	tree3 = tree3.Insert(pbb.(AST.Pred))
-	_, mix := tree3.Unify(pxx.(AST.Pred))
+	tree := NewNode()
+	tree = tree.Insert(p_typed_pred_A_Z)
+	val, mix := tree.Unify(p_typed_pred_int_2)
+
+	fmt.Println("val", val)
 	for _, elem := range mix {
-		fmt.Println(elem.ToString())
+		fmt.Println("elem", elem.ToString())
 	}
-
-	tree3.Print()
 
 }
