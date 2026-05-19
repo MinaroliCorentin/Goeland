@@ -200,11 +200,38 @@ func searchInequalities(form AST.Form) (bool, substitution.Substitutions) {
 func searchClosureRule(f AST.Form, st State) (bool, []substitution.MixedSubstitutions) {
 	switch nf := f.(type) {
 	case AST.Pred:
-		return st.GetTreeNeg().Unify(f)
+		res, subst := st.GetTreeNeg().Unify(f)
+		if res {
+			new_list := Lib.NewList[substitution.MixedSubstitutions]()
+			for _, e := range subst {
+				subst2, res2 := substitution.MergeMixedSubstitutions(e.GetSubsts(), st.applied_subst.GetSubst())
+				if res2 {
+					new_subst := substitution.MakeMatchingSubstitutions(e.GetForm(), substitution.ToSubstitutions(subst2))
+					new_list.Append(new_subst.ToMixed())
+				}
+			}
+			return !new_list.Empty(), new_list.GetSlice()
+		} else {
+			return false, nil
+		}
+
 	case AST.Not:
 		switch nf.GetForm().(type) {
 		case AST.Pred:
-			return st.GetTreePos().Unify(nf.GetForm())
+			res, subst := st.GetTreePos().Unify(nf.GetForm())
+			if res {
+				new_list := Lib.NewList[substitution.MixedSubstitutions]()
+				for _, e := range subst {
+					subst2, res2 := substitution.MergeMixedSubstitutions(e.GetSubsts(), st.applied_subst.GetSubst())
+					if res2 {
+						new_subst := substitution.MakeMatchingSubstitutions(e.GetForm(), substitution.ToSubstitutions(subst2))
+						new_list.Append(new_subst.ToMixed())
+					}
+				}
+				return !new_list.Empty(), new_list.GetSlice()
+			} else {
+				return false, nil
+			}
 		default:
 			return false, nil
 		}

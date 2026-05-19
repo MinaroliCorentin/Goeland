@@ -45,6 +45,7 @@ import (
 	"github.com/GoelandProver/Goeland/Lib"
 	"github.com/GoelandProver/Goeland/Mods/dmt"
 	"github.com/GoelandProver/Goeland/Unif/codetree"
+	"github.com/GoelandProver/Goeland/Unif/discriminationtree"
 	substitution "github.com/GoelandProver/Goeland/Unif/substitution"
 )
 
@@ -104,8 +105,8 @@ func (ds *destructiveSearch) doOneStep(limit int, formula AST.Form) (bool, int) 
 
 	if Glob.GetDt() {
 		// TODO : replace by DT
-		tp = codetree.NewNode()
-		tn = codetree.NewNode()
+		tp = discriminationtree.NewNode()
+		tn = discriminationtree.NewNode()
 	} else {
 		tp = codetree.NewNode()
 		tn = codetree.NewNode()
@@ -1070,7 +1071,7 @@ func (ds *destructiveSearch) ManageClosureRule(
 	father_id uint64,
 	st *State,
 	c Communication,
-	substs Lib.List[Lib.List[substitution.MixedSubstitution]],
+	given_substs Lib.List[Lib.List[substitution.MixedSubstitution]],
 	f Core.FormAndTerms,
 	node_id int,
 	original_node_id int,
@@ -1080,13 +1081,13 @@ func (ds *destructiveSearch) ManageClosureRule(
 	subst := st.GetAppliedSubst().GetSubst()
 	mm = mm.Union(Core.GetMetaFromSubst(subst))
 	substs_with_mm, substs_with_mm_uncleared, substs_without_mm :=
-		Core.DispatchSubst(substs.Copy(Lib.ListCpy[substitution.MixedSubstitution]), mm)
+		Core.DispatchSubst(given_substs.Copy(Lib.ListCpy[substitution.MixedSubstitution]), mm)
 
 	unifier := st.GetGlobUnifier()
 	appliedSubst := st.GetAppliedSubst().GetSubst()
 
 	switch {
-	case substs.Empty():
+	case given_substs.Empty():
 		debug(
 			Lib.MkLazy(func() string { return "Branch closed by ¬⊤ or ⊥ or a litteral and its opposite!" }),
 		)

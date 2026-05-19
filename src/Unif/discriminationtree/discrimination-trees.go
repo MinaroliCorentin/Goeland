@@ -57,12 +57,158 @@ func InitDebugger() {
 /* Structures definition */
 /*************************/
 
-type SymbolType struct {
-	symbol AST.Term // Term of the node
-	arity  int      // Arity of a node
+type NodeElement interface {
+	ToString() string
+	isAllowedNodeElement()
+	IsMeta() bool
+	GetArityType() int
+	Equals(target NodeElement) bool
 }
 
-func (t SymbolType) getSymbol() AST.Term {
+func (ns NodeString) ToString() string {
+	return string(ns)
+}
+
+type NodeString string
+type TermNode struct{ AST.Term }
+type TyNode struct{ AST.Ty }
+type PredNode struct{ AST.Pred }
+
+func (ns NodeString) isAllowedNodeElement() {}
+func (tn TermNode) isAllowedNodeElement()   {}
+func (tn TyNode) isAllowedNodeElement()     {}
+func (tn PredNode) isAllowedNodeElement()   {}
+
+func (ns NodeString) IsMeta() bool {
+	return false
+}
+
+func (tn TermNode) IsMeta() bool {
+	return tn.Term.IsMeta()
+}
+
+func (tn TyNode) IsMeta() bool {
+	return false
+}
+
+func (tn PredNode) IsMeta() bool {
+	return false
+}
+
+func (ns NodeString) GetArityType() int {
+	return 0
+}
+
+func (tn TermNode) GetArityType() int {
+	return tn.GetMetaList().Len()
+}
+
+func (tn TyNode) GetArityType() int {
+	return 0
+}
+
+func (tn PredNode) GetArityType() int {
+	return tn.GetSubTerms().Len()
+}
+
+func (sym SymbolType) getTerm() AST.Term {
+
+	if tn, ok := sym.symbol.(TermNode); ok {
+		return tn.Term
+	}
+	Glob.Anomaly("Not a AST.Term", "Not a AST.Term")
+	return nil
+
+}
+
+func (sym SymbolType) GetTy() AST.Ty {
+
+	if tn, ok := sym.symbol.(TyNode); ok {
+		return tn.Ty
+	}
+	Glob.Anomaly("Not a AST.Ty", "Not a AST.Ty")
+	return nil
+
+}
+
+func (sym SymbolType) getPred() AST.Pred {
+
+	if tn, ok := sym.symbol.(PredNode); ok {
+		return tn.Pred
+	}
+	Glob.Anomaly("Not a AST.Term", "Not a AST.Term")
+	return AST.Pred{}
+
+}
+
+func (sym SymbolType) getString() string {
+
+	if ns, ok := sym.symbol.(NodeString); ok {
+		return ns.ToString()
+	}
+	Glob.Anomaly("Not a string", "Not a string")
+	return ""
+}
+
+func (ns NodeString) Equals(target NodeElement) bool {
+
+	typ, ok := target.(NodeString)
+	if !ok {
+		return false
+	}
+	return strings.EqualFold(ns.ToString(), typ.ToString())
+}
+
+func (tn TermNode) Equals(target NodeElement) bool {
+
+	typ, ok := target.(TermNode)
+	if !ok {
+		return false
+	}
+	return tn.Term.Equals(typ.Term)
+
+}
+
+func (tn TyNode) Equals(target NodeElement) bool {
+
+	typ, ok := target.(TyNode)
+	if !ok {
+		return false
+	}
+	return tn.Ty.Equals(typ.Ty)
+}
+
+func (tn PredNode) Equals(target NodeElement) bool {
+
+	typ, ok := target.(PredNode)
+	if !ok {
+		return false
+	}
+	return tn.Pred.Equals(typ.Pred)
+}
+
+func createNodeElement(t any) NodeElement {
+	switch v := t.(type) {
+	case string:
+		return NodeString(v)
+	case AST.Ty:
+		return TyNode{v}
+	case AST.Pred:
+		return PredNode{v}
+	case AST.Term:
+		return TermNode{v}
+	default:
+		Glob.Anomaly("Unknow Type from createNodeElement(t any) NodeElement ", "Unknow Type from createNodeElement(t any) NodeElement")
+		return nil
+	}
+}
+
+type SymbolType struct {
+	symbol NodeElement // Term of the node
+	arity  int         // Arity of a node
+}
+
+func (t SymbolType) getSymbol() NodeElement {
 	return t.symbol
 }
 
@@ -74,22 +220,17 @@ func (s SymbolType) IsNil() bool {
 	return s.symbol == nil && s.arity == -1
 }
 
-func makeSymbolType(t AST.Term, arity int) SymbolType {
-	return SymbolType{t, arity}
+func makeSymbolType(node NodeElement, arity int) SymbolType {
+	return SymbolType{node, arity}
 }
 
 // Equals between two SymbolType
 func (s SymbolType) Equals(target SymbolType) bool {
 
-	if ok := s.getSymbol().Equals(target.getSymbol()); ok {
-		if s.GetArity() != target.GetArity() {
-			fmt.Printf("Symbol Arity : %d, Target Arity : %d", s.GetArity(), target.GetArity())
-			Glob.Anomaly("Pred Error", "Same predicat but different arity ")
-		} else {
-			return true
-		}
+	if s.GetArity() != target.GetArity() {
+		return false
 	}
-	return false
+	return s.symbol.Equals(target.symbol)
 }
 
 /* Each node of a CodeTree is composed of a sequence of instruction and its children. If it's a leaf, it has formulaes corresponding to the sequence of instructions. */
@@ -138,12 +279,16 @@ func (dNode *DiscriminationNode) setSymbol(symbol SymbolType) {
 	dNode.symbol = symbol
 }
 
+func (dNode DiscriminationNode) getSymbol() SymbolType {
+	return dNode.symbol
+}
+
 func (dNode DiscriminationNode) GetArity() int {
 	return dNode.symbol.GetArity()
 }
 
-func (dNode DiscriminationNode) getSymbol() AST.Term {
-	return dNode.symbol.getSymbol()
+func (dNode DiscriminationNode) getElement() any {
+	return dNode.getSymbol().getSymbol()
 }
 
 func (dNode DiscriminationNode) getChildren() Lib.List[DiscriminationNode] {
@@ -154,8 +299,14 @@ func (dNode DiscriminationNode) getLeafFor() Lib.List[AST.Pred] {
 	return dNode.leafFor
 }
 
-func (dNode DiscriminationNode) ToString() string {
-	return dNode.getSymbol().ToString()
+func (dNode DiscriminationNode) toString() string {
+
+	if dNode.getSymbol().getSymbol() == nil {
+		Glob.Anomaly("Symbol is Nil", "Symbol is nil")
+		return ""
+	}
+	return dNode.getSymbol().getSymbol().ToString()
+
 }
 
 // Struct with a Pred and a associated substitution. Used for Robinson
@@ -195,7 +346,7 @@ func parseFormula(formula AST.Form) Lib.List[SymbolType] {
 	switch formula_type := formula.(type) {
 	case AST.Pred:
 		// Add First element ( Predicat )
-		first_element := makeSymbolType(formula_type.GetID(), formula_type.GetArgs().Len())
+		first_element := makeSymbolType(createNodeElement(formula_type.GetID()), formula_type.GetArgs().Len())
 		res.Append(first_element)
 
 		// Call the parse on each element of the predicat
@@ -216,7 +367,7 @@ func parseTerm(t AST.Term, ctx *NormalizerContext) Lib.List[SymbolType] {
 
 	// if term is a function or cst, add and call his args
 	case AST.Fun:
-		first_element := makeSymbolType(term.GetID(), term.GetArgs().Len())
+		first_element := makeSymbolType(createNodeElement(term.GetID()), term.GetArgs().Len())
 		res.Append(first_element)
 		for _, arg := range term.GetArgs().GetSlice() {
 			res.Append(parseTerm(arg, ctx).GetSlice()...)
@@ -234,8 +385,8 @@ func parseTerm(t AST.Term, ctx *NormalizerContext) Lib.List[SymbolType] {
 			ctx.mapping[originalName] = fakeMeta // Update the mapping : X -> v1 or Y -> v2 .... )
 		}
 
-		normalizedMeta := ctx.mapping[originalName]   // Return the transformed name association to the originalName before adding
-		res.Append(makeSymbolType(normalizedMeta, 0)) // Add the new Meta to the return slice
+		normalizedMeta := ctx.mapping[originalName]                      // Return the transformed name association to the originalName before adding
+		res.Append(makeSymbolType(createNodeElement(normalizedMeta), 0)) // Add the new Meta to the return slice
 
 	}
 	return res
@@ -256,12 +407,12 @@ func parseTerm(t AST.Term, ctx *NormalizerContext) Lib.List[SymbolType] {
 func FirstElementToSymbolType(t AST.Term) SymbolType {
 	switch t := t.(type) {
 	case AST.Fun: // Case function
-		return SymbolType{t.GetID(), t.GetArgs().Len()}
+		return SymbolType{createNodeElement(t.GetID()), t.GetArgs().Len()}
 	case AST.Meta: // Case metaVariable
-		return SymbolType{t, 0}
+		return SymbolType{createNodeElement(t), 0}
 	default: // Not supposed to see something else
 		Glob.Anomaly("TermToST", "Var or Id")
-		return SymbolType{nil, -1}
+		return SymbolType{createNodeElement(nil), -1} // Dog Code that will fail but won't be triggered due to Glob.Anomaly + make the compiler happy
 	}
 }
 
@@ -322,7 +473,7 @@ func (dNode DiscriminationNode) insertRec(seq Lib.List[SymbolType], originalTerm
 	// Looking for already existing child
 	var ok bool
 	for i, child := range childrenSlice {
-		if ok = child.symbol.Equals(sym); ok { // Set ok to True
+		if ok = child.getSymbol().Equals(sym); ok { // Set ok to True
 			foundIndex = i
 			break
 		}
@@ -401,7 +552,7 @@ func retrieveCase(seq []SymbolType, currentEnv subst.Substitutions, child Discri
 	symChild := child.getSymbol() // child is  meta or cst
 
 	// Case the child is a AST.Meta
-	if symChild != nil && symChild.IsMeta() && !isExactMatch {
+	if !symChild.IsNil() && child.getSymbol().getSymbol().IsMeta() && !isExactMatch {
 
 		// We noticed that the term of the dNode is a Meta
 		// Meaning that we can skip the current term of the seq ( paramater of this function ) bc it will be unify with the current term
@@ -412,7 +563,7 @@ func retrieveCase(seq []SymbolType, currentEnv subst.Substitutions, child Discri
 
 			var mergedSub subst.Substitutions
 			if skip == 1 {
-				currentSub := subst.MakeSubstitution(symChild.ToMeta(), symQuery.getSymbol())
+				currentSub := subst.MakeSubstitution(symChild.getTerm().ToMeta(), symQuery.getTerm())
 				tmp3 := subst.Substitutions{currentSub}
 				// Ok Commat Idoms doesn't works because ??????????????????????????????
 				if len(currentEnv) == 0 {
@@ -433,7 +584,9 @@ func retrieveCase(seq []SymbolType, currentEnv subst.Substitutions, child Discri
 		}
 
 		// First element is a meta
-	} else if symQuery.getSymbol() != nil && symQuery.getSymbol().IsMeta() && !isExactMatch {
+
+	} else if !symQuery.IsNil() && symQuery.getSymbol().IsMeta() && !isExactMatch {
+
 		// Reverse of the situation with the previous if.
 		// The symbol from seq ( parameter of this function ) is a Meta, meaning we skip the current term of dNode because it will be unify
 		// e.g dNode = a, seq = [x] so a |-> x and we got to the next term of the dNode
@@ -441,7 +594,7 @@ func retrieveCase(seq []SymbolType, currentEnv subst.Substitutions, child Discri
 		var mergedSub subst.Substitutions
 
 		if child.GetArity() == 0 {
-			currentSub := subst.MakeSubstitution(symQuery.getSymbol().ToMeta(), symChild) // Create a new substitution
+			currentSub := subst.MakeSubstitution(symQuery.getTerm().ToMeta(), symChild.getTerm()) // Create a new substitution
 			tmp3 := subst.Substitutions{currentSub}
 			if len(currentEnv) == 0 {
 				mergedSub = tmp3
@@ -523,16 +676,13 @@ func (dNode DiscriminationNode) displayRec(indent int) {
 	if indent == 2 {
 		prefix = strings.Repeat("[ROOT]", indent-1) + " |-- "
 	}
-	debug(Lib.MkLazy(func() string {
-		return fmt.Sprintf("%s%s arity : %d\n", prefix, dNode.getSymbol().ToString(), dNode.GetArity())
-	}))
+
+	fmt.Printf("%s%s arity : %d\n", prefix, dNode.getSymbol().symbol.ToString(), dNode.GetArity())
 
 	if dNode.getLeafFor().Len() > 0 {
 		leafPrefix := strings.Repeat("    ", indent) + " [=> "
 		for _, pred := range dNode.getLeafFor().GetSlice() {
-			debug(Lib.MkLazy(func() string {
-				return fmt.Sprintf("%s%s]\n", leafPrefix, pred.ToString())
-			}))
+			fmt.Printf("%s%s]\n", leafPrefix, pred.ToString())
 		}
 	}
 	for _, child := range dNode.getChildren().GetSlice() {
@@ -602,6 +752,11 @@ func (dNode DiscriminationNode) InsertFormulaListToDataStructure(lf Lib.List[AST
 func (dNode DiscriminationNode) Unify(inputFormula AST.Form) (bool, []subst.MixedSubstitutions) {
 
 	candidates := dNode.RetrieveUnifiables(inputFormula)
+
+	for _, elem := range candidates {
+		fmt.Println("Pred", elem.getPred().ToString(), "Subs", elem.GetSubs().ToString())
+	}
+
 	var mixed []subst.MixedSubstitutions
 	var found bool
 

@@ -44,7 +44,7 @@ import (
 	"github.com/GoelandProver/Goeland/Glob"
 	"github.com/GoelandProver/Goeland/Lib"
 	"github.com/GoelandProver/Goeland/Mods/equality/eqStruct"
-	"github.com/GoelandProver/Goeland/Unif/substitution"
+	subst "github.com/GoelandProver/Goeland/Unif/substitution"
 )
 
 /****************/
@@ -428,10 +428,10 @@ func (st State) Copy() State {
 	// Recréer arbre
 	if Glob.IsLoaded("dmt") {
 		new_state.SetTreePos(st.tree_pos.MakeDataStruct(st.GetAtomic().ExtractForms(), true))
-		new_state.SetTreeNeg(st.tree_pos.MakeDataStruct(st.GetAtomic().ExtractForms(), false))
+		new_state.SetTreeNeg(st.tree_neg.MakeDataStruct(st.GetAtomic().ExtractForms(), false))
 	} else {
-		new_state.SetTreePos(st.GetTreePos())
-		new_state.SetTreeNeg(st.GetTreeNeg())
+		new_state.SetTreePos(st.GetTreePos().MakeDataStruct(st.GetAtomic().ExtractForms(), true))
+		new_state.SetTreeNeg(st.GetTreeNeg().MakeDataStruct(st.GetAtomic().ExtractForms(), false))
 	}
 
 	new_state.SetProof([]ProofStruct{})

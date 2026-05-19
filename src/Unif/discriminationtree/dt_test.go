@@ -56,10 +56,12 @@ var c_id AST.Id
 var d_id AST.Id
 var c1_id AST.Id
 var c2_id AST.Id
-var PR_id AST.Id
+var P2_id AST.Id
 
 // Meta
 var x AST.Meta
+var v1 AST.Meta
+var v2 AST.Meta
 var y AST.Meta
 var z AST.Meta
 var z1 AST.Meta
@@ -158,8 +160,8 @@ var pfzz AST.Form
 
 var not_pcd AST.Form
 
-var PRa AST.Form
-var PRb AST.Form
+var P2a AST.Form
+var P2b AST.Form
 
 func initTestVariable() {
 
@@ -173,10 +175,12 @@ func initTestVariable() {
 	d_id = AST.MakerId("d")
 	c1_id = AST.MakerId("c1")
 	c2_id = AST.MakerId("c2")
-	PR_id = AST.MakerId("PR")
+	P2_id = AST.MakerId("P2")
 
 	// Meta
 	x = AST.MakerMeta("X", -1, AST.TIndividual())
+	v1 = AST.MakeMeta(1, 0, "v1", 0, AST.TIndividual())
+	v2 = AST.MakeMeta(2, 0, "v2", 0, AST.TIndividual())
 	y = AST.MakerMeta("Y", -1, AST.TIndividual())
 	z = AST.MakerMeta("Z", -1, AST.TIndividual())
 	z1 = AST.MakerMeta("Z1", -1, AST.TIndividual())
@@ -266,33 +270,82 @@ func initTestVariable() {
 	not_pcd = AST.MakerNot(AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](c, d)))
 	pa = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](a))
 	pb = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](b))
-	PRa = AST.MakerPred(PR_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](a))
-	PRb = AST.MakerPred(PR_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](b))
+	P2a = AST.MakerPred(P2_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](a))
+	P2b = AST.MakerPred(P2_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](b))
 }
 
 // Typed Part
 
 var p_typed_id AST.Id
+var b_typed_id AST.Id
+var a_typed_id AST.Id
 var a_typed AST.Ty
-var p_typed_pred_A_Z AST.Pred
+var p_typed_pred_Const_A AST.Pred
+var p_typed_pred_Const_B AST.Pred
 var p_typed_pred_int_2 AST.Pred
+var p_typed_pred_int_3 AST.Pred
+var p_typed_pred_int_int AST.Pred
+var p_typed_pred_int_x AST.Pred
+var p_typed_pred_reel_x AST.Pred
+var p_typed_pred_rational_x AST.Pred
+
+var p_id_typed AST.Id
+var p_typed AST.Pred
+var random_type AST.Ty
+var banane_id AST.Id
+var banane AST.Term
+var meta_typee AST.Term
 
 func initTestVariable2() {
 
 	p_typed_id = AST.MakerId("p")
+	b_typed_id = AST.MakerId("b")
+	a_typed_id = AST.MakerId("A")
 
-	a_typed := AST.MkTyMeta("A", -1)
+	A := AST.MkTyConst("A")
+	B := AST.MkTyConst("B")
 
-	p_typed_pred_A_Z = AST.MakerPred(p_typed_id,
-		Lib.MkListV(a_typed),
-		Lib.MkListV[AST.Term](AST.MakerMeta("Z", -1, a_typed)),
+	x = AST.MakerMeta("X", -1, AST.TIndividual())
+
+	p_typed_pred_Const_A = AST.MakerPred(p_typed_id,
+		Lib.MkListV(A),
+		Lib.MkListV[AST.Term](AST.MakerConst(a_typed_id)),
+	)
+
+	p_typed_pred_Const_B = AST.MakerPred(p_typed_id,
+		Lib.MkListV(B),
+		Lib.MkListV[AST.Term](AST.MakerConst(b_typed_id)),
+	)
+
+	p_typed_pred_int_x = AST.MakerPred(p_typed_id,
+		Lib.MkListV(AST.TInt()),
+		Lib.MkListV[AST.Term](x),
+	)
+
+	p_typed_pred_reel_x = AST.MakerPred(p_typed_id,
+		Lib.MkListV(AST.TReal()),
+		Lib.MkListV[AST.Term](x),
+	)
+
+	p_typed_pred_rational_x = AST.MakerPred(p_typed_id,
+		Lib.MkListV(AST.TRat()),
+		Lib.MkListV[AST.Term](x),
+	)
+
+	p_typed_pred_int_3 = AST.MakerPred(p_typed_id,
+		Lib.MkListV(AST.MkTyConst("int")),
+		Lib.MkListV[AST.Term](AST.MakerConst(AST.MakerId("3"))),
 	)
 
 	p_typed_pred_int_2 = AST.MakerPred(p_typed_id,
-		Lib.MkListV(AST.MkTyConst("int")),
+		Lib.MkListV(AST.TInt()),
 		Lib.MkListV[AST.Term](AST.MakerConst(AST.MakerId("2"))),
 	)
 
+	random_type = AST.MakerTyBV("random_type")
+	p_id_typed = AST.MakerId("p_typed")
+	meta_typee = AST.MakerMeta("Z", -1, random_type)
+	p_typed = AST.MakerPred(p_id_typed, Lib.MkListV(random_type), Lib.MkListV(meta_typee))
 }
 
 func initDebuggers() {
@@ -323,8 +376,6 @@ func TestFirstElementToSymbolType(t *testing.T) {
 
 	if tree.GetArity() == -1 {
 		Glob.Anomaly("Arity Error", "Wrong Arity")
-	} else {
-		fmt.Println("OK")
 	}
 
 	tree2 := NewNode()
@@ -335,16 +386,12 @@ func TestFirstElementToSymbolType(t *testing.T) {
 
 	if tree2.GetArity() == -1 {
 		Glob.Anomaly("Arity Error", "Wrong Arity")
-	} else {
-		fmt.Println("OK")
 	}
 
 	argsC := gga.GetArgs()
 	resultC := FirstElementToSymbolType(argsC.At(0))
 	if resultC.GetArity() == -1 {
 		Glob.Anomaly("Arity Error", "Wrong Arity")
-	} else {
-		fmt.Println("OK")
 	}
 
 	fmt.Println("-----EXPECTED PANIC-----")
@@ -359,7 +406,7 @@ func TestFirstElementToSymbolType(t *testing.T) {
 
 		argsD := c_id
 		resultD := FirstElementToSymbolType(argsD)
-		println("Not supposed to see this ", resultD.symbol) // Required or Go panic due variable not used. However if you see this print : Bon Courage
+		println("Not supposed to see this ", resultD.getTerm().ToString()) // Required or Go panic due variable not used. However if you see this print : Bon Courage
 
 	}()
 	fmt.Println("---END EXPECTED PANIC---")
@@ -429,8 +476,8 @@ func TestPrintDiscriminationTree(t *testing.T) {
 	tree := NewNode()
 	tree = tree.Insert(pa.(AST.Pred))
 	tree = tree.Insert(pb.(AST.Pred))
-	tree = tree.Insert(PRa.(AST.Pred))
-	tree = tree.Insert(PRb.(AST.Pred))
+	tree = tree.Insert(P2a.(AST.Pred))
+	tree = tree.Insert(P2b.(AST.Pred))
 	tree.Print()
 
 	fmt.Println()
@@ -445,8 +492,8 @@ func TestPrintSamePredicatCheck(t *testing.T) {
 	tree := NewNode()
 	tree = tree.Insert(pa.(AST.Pred))
 	tree = tree.Insert(pb.(AST.Pred))
-	tree = tree.Insert(PRa.(AST.Pred))
-	tree = tree.Insert(PRb.(AST.Pred))
+	tree = tree.Insert(P2a.(AST.Pred))
+	tree = tree.Insert(P2b.(AST.Pred))
 	tree.Print()
 
 }
@@ -492,37 +539,22 @@ func TestTmp(t *testing.T) {
 func TestParseFormula(t *testing.T) {
 
 	tmp := parseFormula(pax)
-
-	fmt.Println(tmp.GetSlice())
-
-	for _, value := range tmp.GetSlice() {
-		fmt.Println(value.getSymbol().ToString())
-		if value.getSymbol().ToString() == "P" {
-			if value.GetArity() != 2 {
-				t.Fatalf("Arrity Error")
-			}
-		} else if value.getSymbol().ToString() == "a" {
-			if value.GetArity() != 0 {
-				t.Fatalf("Arrity Error")
-			}
-		} else if value.getSymbol().ToString() == "v1" {
-			if value.GetArity() != 0 {
-				t.Fatalf("Arrity Error")
-			}
-		} else {
-			t.Fatalf("Supposed to have only \"P\", \"a\" or \"v1\" ")
-		}
-	}
-
-	tmp2 := parseFormula(pay)
-	for _, elem := range tmp2.GetSlice() {
-		tmp.Append(elem)
-	}
+	expectedPred := makeSymbolType(createNodeElement(p_id), 2)
+	expectedA := makeSymbolType(createNodeElement(a_id), 0)
+	expectedX := makeSymbolType(createNodeElement(v1), 0)
 
 	for _, elem := range tmp.GetSlice() {
-		fmt.Println("elem", elem.getSymbol().ToString())
-	}
 
+		if elem.Equals(expectedPred) {
+			continue
+		} else if elem.Equals(expectedA) {
+			continue
+		} else if elem.Equals(expectedX) {
+			continue
+		} else {
+			t.Fatalf("Symbole inconnu détecté dans parseFormula : %s", elem.getSymbol().ToString())
+		}
+	}
 }
 
 func TestParseTerm(t *testing.T) {
@@ -540,7 +572,7 @@ func TestParseTerm(t *testing.T) {
 		t.Fatalf("Got %d elements", len(seq))
 	}
 	for _, sym := range seq {
-		tmp = append(tmp, sym.getSymbol().ToString())
+		tmp = append(tmp, sym.getTerm().ToString())
 	}
 	fmt.Printf(" Sequence Parsed : % v\n", tmp)
 
@@ -550,7 +582,7 @@ func TestParseTerm(t *testing.T) {
 		t.Fatalf("Got %d elements", len(seq))
 	}
 	for _, sym := range seq {
-		tmp2 = append(tmp2, sym.getSymbol().ToString())
+		tmp2 = append(tmp2, sym.getTerm().ToString())
 	}
 	fmt.Printf(" Sequence Parsed : %v\n", tmp2)
 
@@ -560,7 +592,7 @@ func TestParseTerm(t *testing.T) {
 		t.Fatalf("Got %d elements", len(seq))
 	}
 	for _, sym := range seq {
-		tmp3 = append(tmp3, sym.getSymbol().ToString())
+		tmp3 = append(tmp3, sym.getTerm().ToString())
 	}
 	fmt.Printf(" Sequence Parsed : %v\n", tmp3)
 
@@ -1315,12 +1347,22 @@ func TestMakeDataStruct(t *testing.T) {
 func TestToutPlaquerPourDevenirCharpentier(t *testing.T) {
 
 	tree := NewNode()
-	tree = tree.Insert(p_typed_pred_A_Z)
+	// tree = tree.Insert(p_typed_pred_int_x)
+	// tree = tree.Insert(p_typed_pred_reel_x)
+	tree = tree.Insert(p_typed)
+
+	tree.Print()
+
 	val, mix := tree.Unify(p_typed_pred_int_2)
 
 	fmt.Println("val", val)
 	for _, elem := range mix {
 		fmt.Println("elem", elem.ToString())
+	}
+
+	elem := (pba.(AST.Pred)).GetTyArgs()
+	for _, truc := range elem.GetSlice() {
+		fmt.Println("hfhfsife", truc.ToString())
 	}
 
 }

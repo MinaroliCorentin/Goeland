@@ -43,8 +43,9 @@ import (
 	"github.com/GoelandProver/Goeland/AST"
 	"github.com/GoelandProver/Goeland/Glob"
 	"github.com/GoelandProver/Goeland/Lib"
-	Unif "github.com/GoelandProver/Goeland/Unif/substitution"
 	"github.com/GoelandProver/Goeland/Unif/codetree"
+	"github.com/GoelandProver/Goeland/Unif/discriminationtree"
+	Unif "github.com/GoelandProver/Goeland/Unif/substitution"
 )
 
 var positiveRewrite map[string]Lib.List[AST.Form] /* Stores rewrites of atoms with positive occurrences */
@@ -83,9 +84,14 @@ func InitPluginTests(polarized, presko bool) {
 func initPluginGlobalVariables() {
 	positiveRewrite = make(map[string]Lib.List[AST.Form])
 	negativeRewrite = make(map[string]Lib.List[AST.Form])
-	// TODO 
-	positiveTree = codetree.NewNode()
-	negativeTree = codetree.NewNode()
+
+	if Glob.GetDt() {
+		positiveTree = discriminationtree.NewNode()
+		positiveTree = discriminationtree.NewNode()
+	} else {
+		positiveTree = codetree.NewNode()
+		negativeTree = codetree.NewNode()
+	}
 
 	registeredAxioms = Lib.NewList[AST.Form]()
 }

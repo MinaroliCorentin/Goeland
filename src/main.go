@@ -61,6 +61,7 @@ import (
 	"github.com/GoelandProver/Goeland/Search/incremental"
 	"github.com/GoelandProver/Goeland/Typing"
 	"github.com/GoelandProver/Goeland/Unif/codetree"
+	"github.com/GoelandProver/Goeland/Unif/discriminationtree"
 	subst "github.com/GoelandProver/Goeland/Unif/substitution"
 )
 
@@ -221,6 +222,7 @@ func initDebuggers() {
 	Search.InitDebugger()
 	Typing.InitDebugger()
 	codetree.InitDebugger()
+	discriminationtree.InitDebugger()
 	subst.InitDebugger()
 	Engine.InitDebugger()
 	gs3.InitDebugger()

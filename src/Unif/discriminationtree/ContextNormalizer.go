@@ -46,6 +46,7 @@ import (
 type NormalizerContext struct {
 	counter int                 // Counter for the naming
 	mapping map[string]AST.Meta // Association a variable name to a normalizedVariable name
+	ty      AST.Ty
 }
 
 // New Instance
@@ -53,16 +54,20 @@ func NewContext() *NormalizerContext {
 	return &NormalizerContext{
 		counter: 0,
 		mapping: make(map[string]AST.Meta),
+		ty:      nil,
 	}
 }
 
 func (ctx *NormalizerContext) GetNormalizedMeta(originalMeta AST.Meta) AST.Meta {
 
 	originalName := originalMeta.GetName() // Get meeta Name
+	orignalType := originalMeta.GetTy()
 
 	// Contains check
-	if fakeMeta, exists := ctx.mapping[originalName]; exists {
-		return fakeMeta
+	if normalizedMeta, exists := ctx.mapping[originalName]; exists {
+		if normalizedMeta.GetTy().Equals(orignalType) {
+			return normalizedMeta
+		}
 	}
 
 	// Create new name
@@ -70,6 +75,7 @@ func (ctx *NormalizerContext) GetNormalizedMeta(originalMeta AST.Meta) AST.Meta 
 	newName := fmt.Sprintf("v%d", ctx.counter) // Create the Meta name
 	newMeta := AST.MakeMeta(ctx.counter, 0, newName, 0, originalMeta.GetTy())
 	ctx.mapping[originalName] = newMeta // Add to the map
+	ctx.ty = newMeta.GetTy()
 
 	return newMeta
 }
