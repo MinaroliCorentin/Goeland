@@ -72,12 +72,10 @@ func (ns NodeString) ToString() string {
 type NodeString string
 type TermNode struct{ AST.Term }
 type TyNode struct{ AST.Ty }
-type PredNode struct{ AST.Pred }
 
 func (ns NodeString) isAllowedNodeElement() {}
 func (tn TermNode) isAllowedNodeElement()   {}
 func (tn TyNode) isAllowedNodeElement()     {}
-func (tn PredNode) isAllowedNodeElement()   {}
 
 func (ns NodeString) IsMeta() bool {
 	return false
@@ -91,10 +89,6 @@ func (tn TyNode) IsMeta() bool {
 	return false
 }
 
-func (tn PredNode) IsMeta() bool {
-	return false
-}
-
 func (ns NodeString) GetArityType() int {
 	return 0
 }
@@ -105,10 +99,6 @@ func (tn TermNode) GetArityType() int {
 
 func (tn TyNode) GetArityType() int {
 	return 0
-}
-
-func (tn PredNode) GetArityType() int {
-	return tn.GetSubTerms().Len()
 }
 
 func (sym SymbolType) getTerm() AST.Term {
@@ -128,16 +118,6 @@ func (sym SymbolType) GetTy() AST.Ty {
 	}
 	Glob.Anomaly("Not a AST.Ty", "Not a AST.Ty")
 	return nil
-
-}
-
-func (sym SymbolType) getPred() AST.Pred {
-
-	if tn, ok := sym.symbol.(PredNode); ok {
-		return tn.Pred
-	}
-	Glob.Anomaly("Not a AST.Term", "Not a AST.Term")
-	return AST.Pred{}
 
 }
 
@@ -178,15 +158,6 @@ func (tn TyNode) Equals(target NodeElement) bool {
 	return tn.Ty.Equals(typ.Ty)
 }
 
-func (tn PredNode) Equals(target NodeElement) bool {
-
-	typ, ok := target.(PredNode)
-	if !ok {
-		return false
-	}
-	return tn.Pred.Equals(typ.Pred)
-}
-
 func createNodeElement(t any) NodeElement {
 	switch v := t.(type) {
 	case string:
@@ -194,7 +165,7 @@ func createNodeElement(t any) NodeElement {
 	case AST.Ty:
 		return TyNode{v}
 	case AST.Pred:
-		return PredNode{v}
+		return TermNode{subst.TransformPred(v)}
 	case AST.Term:
 		return TermNode{v}
 	default:
@@ -250,7 +221,7 @@ func NewNode() DiscriminationNode {
 }
 
 // Basic Node with SymbolType and no empty list for children and leafFor
-func MakeNodeWithSym(sym SymbolType) DiscriminationNode {
+func MakeDiscriminationNodeWithSym(sym SymbolType) DiscriminationNode {
 	return DiscriminationNode{
 		symbol:   sym,
 		children: Lib.NewList[DiscriminationNode](),
@@ -258,25 +229,13 @@ func MakeNodeWithSym(sym SymbolType) DiscriminationNode {
 	}
 }
 
-func MakeNodeWithSymAndleaf(sym SymbolType, leaf Lib.List[AST.Pred]) DiscriminationNode {
-	return DiscriminationNode{
-		symbol:   sym,
-		children: Lib.NewList[DiscriminationNode](),
-		leafFor:  leaf,
-	}
-}
-
 // Basic Node with SymbolType, children and empty List for leafFor
-func MakeNodeWithSymAndChildren(sym SymbolType, children Lib.List[DiscriminationNode]) DiscriminationNode {
+func MakeDiscriminationNodeWithSymAndChildren(sym SymbolType, children Lib.List[DiscriminationNode]) DiscriminationNode {
 	return DiscriminationNode{
 		symbol:   sym,
 		children: children,
 		leafFor:  Lib.NewList[AST.Pred](),
 	}
-}
-
-func (dNode *DiscriminationNode) setSymbol(symbol SymbolType) {
-	dNode.symbol = symbol
 }
 
 func (dNode DiscriminationNode) getSymbol() SymbolType {
@@ -324,6 +283,18 @@ func (Candidat CandidatResult) GetSubs() subst.Substitutions {
 	return Candidat.Subs
 }
 
+func (Candidat CandidatResult) toString() string {
+	return fmt.Sprintf("Pred : %s Subs :  %s\n", Candidat.getPred().ToString(), Candidat.GetSubs().ToString())
+}
+
+// Works only if Len(CandidatResult) is 1. Had Enough to for-each all the time for single element
+func ToSingleElement(candidats []CandidatResult) CandidatResult {
+	if len(candidats) == 1 {
+		return candidats[0]
+	}
+	return CandidatResult{}
+}
+
 func MakeCandidat(p AST.Pred, sub subst.Substitutions) CandidatResult {
 	return CandidatResult{
 		Pred: p,
@@ -339,27 +310,6 @@ func MakeCandidat(p AST.Pred, sub subst.Substitutions) CandidatResult {
 /*********** Parse ***********/
 /*****************************/
 
-func parseFormula(formula AST.Form) Lib.List[SymbolType] {
-	res := Lib.NewList[SymbolType]()
-	ctx := NewContext() // Context gonna store all the transformations ( X == v1, Y == v2, ...)
-
-	switch formula_type := formula.(type) {
-	case AST.Pred:
-		// Add First element ( Predicat )
-		first_element := makeSymbolType(createNodeElement(formula_type.GetID()), formula_type.GetArgs().Len())
-		res.Append(first_element)
-
-		// Call the parse on each element of the predicat
-		for _, arg := range formula_type.GetArgs().GetSlice() {
-			arg_list := parseTerm(arg, ctx)
-			res.Append(arg_list.GetSlice()...)
-		}
-		return res
-	default:
-		return Lib.NewList[SymbolType]()
-	}
-}
-
 func parseTerm(t AST.Term, ctx *NormalizerContext) Lib.List[SymbolType] {
 	res := Lib.NewList[SymbolType]()
 
@@ -367,7 +317,9 @@ func parseTerm(t AST.Term, ctx *NormalizerContext) Lib.List[SymbolType] {
 
 	// if term is a function or cst, add and call his args
 	case AST.Fun:
-		first_element := makeSymbolType(createNodeElement(term.GetID()), term.GetArgs().Len())
+
+		funSansArgs := AST.MakerFun(term.GetID(), term.GetTyArgs(), Lib.NewList[AST.Term]())
+		first_element := makeSymbolType(createNodeElement(funSansArgs), term.GetArgs().Len())
 		res.Append(first_element)
 		for _, arg := range term.GetArgs().GetSlice() {
 			res.Append(parseTerm(arg, ctx).GetSlice()...)
@@ -388,7 +340,17 @@ func parseTerm(t AST.Term, ctx *NormalizerContext) Lib.List[SymbolType] {
 		normalizedMeta := ctx.mapping[originalName]                      // Return the transformed name association to the originalName before adding
 		res.Append(makeSymbolType(createNodeElement(normalizedMeta), 0)) // Add the new Meta to the return slice
 
+	case AST.Id:
+		fmt.Println("Parse AST.id", term.GetName())
+		funSansArgs := AST.MakerFun(term, Lib.NewList[AST.Ty](), Lib.NewList[AST.Term]())
+		first_element := makeSymbolType(createNodeElement(funSansArgs), 0)
+		res.Append(first_element)
+
+	default:
+		fmt.Println("Error in ParseTerm")
+
 	}
+
 	return res
 
 }
@@ -407,7 +369,11 @@ func parseTerm(t AST.Term, ctx *NormalizerContext) Lib.List[SymbolType] {
 func FirstElementToSymbolType(t AST.Term) SymbolType {
 	switch t := t.(type) {
 	case AST.Fun: // Case function
-		return SymbolType{createNodeElement(t.GetID()), t.GetArgs().Len()}
+		funSansArgs := AST.MakerFun(t.GetID(), t.GetTyArgs(), Lib.NewList[AST.Term]())
+		return SymbolType{createNodeElement(funSansArgs), t.GetArgs().Len()}
+	case AST.Id:
+		funSansArgs := AST.MakerFun(t, Lib.NewList[AST.Ty](), Lib.NewList[AST.Term]())
+		return SymbolType{createNodeElement(funSansArgs), 0}
 	case AST.Meta: // Case metaVariable
 		return SymbolType{createNodeElement(t), 0}
 	default: // Not supposed to see something else
@@ -423,9 +389,11 @@ func TermToNode(t AST.Term) DiscriminationNode {
 		for _, c := range t.GetArgs().GetSlice() {
 			children.Append(TermToNode(c))
 		}
-		return MakeNodeWithSymAndChildren(FirstElementToSymbolType(t), children)
+		return MakeDiscriminationNodeWithSymAndChildren(FirstElementToSymbolType(t), children)
+	case AST.Id:
+		return MakeDiscriminationNodeWithSym(FirstElementToSymbolType(t))
 	case AST.Meta: // Node with T as SymbolType and empty children / leafFor
-		return MakeNodeWithSym(FirstElementToSymbolType(t))
+		return MakeDiscriminationNodeWithSym(FirstElementToSymbolType(t))
 	default:
 		Glob.Anomaly("TermToST", "Var or Id")
 		return NewNode()
@@ -443,7 +411,8 @@ func TermToNode(t AST.Term) DiscriminationNode {
 // Insert a AST.Pred in the tree. If using a AST.term, it have to be cast when inserting ( tree = tree.Insert(px.(AST.pred)) )
 // Call the parser then the auxiliary function
 func (dNode DiscriminationNode) Insert(p AST.Pred) DiscriminationNode {
-	sym_list := parseFormula(p)
+	termP := subst.TransformPred(p)
+	sym_list := parseTerm(termP, NewContext())
 	return dNode.insertRec(sym_list, p)
 }
 
@@ -469,13 +438,19 @@ func (dNode DiscriminationNode) insertRec(seq Lib.List[SymbolType], originalTerm
 	sym := seq.At(0)
 	foundIndex := -1
 	childrenSlice := dNode.getChildren().GetSlice()
+	var ok = false
 
 	// Looking for already existing child
-	var ok bool
 	for i, child := range childrenSlice {
-		if ok = child.getSymbol().Equals(sym); ok { // Set ok to True
-			foundIndex = i
-			break
+		if child.getSymbol().getSymbol().Equals(sym.getSymbol()) {
+			if child.GetArity() == sym.GetArity() {
+				foundIndex = i
+				ok = true
+				break
+			} else {
+				Glob.Anomaly("Arity Missmatch", "Same Symbol but different Arity")
+			}
+
 		}
 	}
 
@@ -487,7 +462,7 @@ func (dNode DiscriminationNode) insertRec(seq Lib.List[SymbolType], originalTerm
 
 	} else { // if Child doesn't exist
 
-		newChild := MakeNodeWithSym(sym)                                  // Create a new Node with the new SymbolType and his leafFor
+		newChild := MakeDiscriminationNodeWithSym(sym)                    // Create a new Node with the new SymbolType and his leafFor
 		updatedChild := newChild.insertRec(seq.RemoveAt(0), originalTerm) // Insert the rest of the sequence after the new child
 		dNode.children.Append(updatedChild)                               // Update the children of the args node
 	}
@@ -538,86 +513,11 @@ func (dNode DiscriminationNode) SkipTreeTermAndContinue(needed int, remainingQue
 
 }
 
-func retrieveCase(seq []SymbolType, currentEnv subst.Substitutions, child DiscriminationNode, ch chan<- []CandidatResult, wg *sync.WaitGroup) {
-
-	defer wg.Done()
-	symQuery := seq[0] // First Element
-
-	isExactMatch := child.symbol.Equals(symQuery)
-	if isExactMatch { // Exact Match
-		matches := child.retrieveRec(seq[1:], currentEnv) // Exact Match -> Search next element
-		ch <- matches
-	}
-
-	symChild := child.getSymbol() // child is  meta or cst
-
-	// Case the child is a AST.Meta
-	if !symChild.IsNil() && child.getSymbol().getSymbol().IsMeta() && !isExactMatch {
-
-		// We noticed that the term of the dNode is a Meta
-		// Meaning that we can skip the current term of the seq ( paramater of this function ) bc it will be unify with the current term
-		// e.g dNode = x, seq = [f,a] so [f,a] |-> x and we skip 2 because GetSbTermLength of [f,a] is 2
-		skip := GetSubTermLength(seq)
-
-		if skip <= len(seq) { // Security to prevent segfault
-
-			var mergedSub subst.Substitutions
-			if skip == 1 {
-				currentSub := subst.MakeSubstitution(symChild.getTerm().ToMeta(), symQuery.getTerm())
-				tmp3 := subst.Substitutions{currentSub}
-				// Ok Commat Idoms doesn't works because ??????????????????????????????
-				if len(currentEnv) == 0 {
-					mergedSub = tmp3
-				} else {
-					mergedSub, _ = subst.MergeSubstitutions(currentEnv, tmp3)
-				}
-			} else {
-				mergedSub = currentEnv
-			}
-
-			// Verify
-			if !mergedSub.Equals(subst.Failure()) {
-				matches := child.retrieveRec(seq[skip:], mergedSub)
-				ch <- matches
-			}
-
-		}
-
-		// First element is a meta
-
-	} else if !symQuery.IsNil() && symQuery.getSymbol().IsMeta() && !isExactMatch {
-
-		// Reverse of the situation with the previous if.
-		// The symbol from seq ( parameter of this function ) is a Meta, meaning we skip the current term of dNode because it will be unify
-		// e.g dNode = a, seq = [x] so a |-> x and we got to the next term of the dNode
-
-		var mergedSub subst.Substitutions
-
-		if child.GetArity() == 0 {
-			currentSub := subst.MakeSubstitution(symQuery.getTerm().ToMeta(), symChild.getTerm()) // Create a new substitution
-			tmp3 := subst.Substitutions{currentSub}
-			if len(currentEnv) == 0 {
-				mergedSub = tmp3
-			} else {
-				mergedSub, _ = subst.MergeSubstitutions(currentEnv, tmp3)
-			}
-		} else {
-			mergedSub = currentEnv
-		}
-
-		if !mergedSub.Equals(subst.Failure()) {
-			childResults := child.SkipTreeTermAndContinue(child.GetArity(), seq[1:], mergedSub)
-			ch <- childResults
-		}
-
-	} else {
-		// No recursive call or return
-	}
-
-}
-
 func (dNode DiscriminationNode) RetrieveUnifiables(t AST.Form) []CandidatResult {
-	seq := parseFormula(t).GetSlice()
+	predFormula, _ := t.(AST.Pred)
+	termQuery := subst.TransformPred(predFormula)
+
+	seq := parseTerm(termQuery, NewContext()).GetSlice()
 	Env := subst.Substitutions{}
 	return dNode.retrieveRec(seq, Env)
 }
@@ -657,6 +557,84 @@ func (dNode DiscriminationNode) retrieveRec(seq []SymbolType, currentEnv subst.S
 	}
 
 	return results
+}
+
+func retrieveCase(seq []SymbolType, currentEnv subst.Substitutions, child DiscriminationNode, ch chan<- []CandidatResult, wg *sync.WaitGroup) {
+
+	defer wg.Done()
+	symQuery := seq[0] // First Element
+
+	isExactMatch := child.symbol.Equals(symQuery)
+	if isExactMatch { // Exact Match
+		matches := child.retrieveRec(seq[1:], currentEnv) // Exact Match -> Search next element
+		ch <- matches
+	}
+
+	childSym := child.getSymbol() // child is  meta or cst
+
+	// Case the child is a AST.Meta
+	if child.getSymbol().getSymbol().IsMeta() && !isExactMatch {
+
+		// We noticed that the term of the dNode is a Meta
+		// Meaning that we can skip the current term of the seq ( paramater of this function ) bc it will be unify with the current term
+		// e.g dNode = x, seq = [f,a] so [f,a] |-> x and we skip 2 because GetSbTermLength of [f,a] is 2
+		skip := GetSubTermLength(seq)
+
+		if skip <= len(seq) { // Security to prevent segfault
+
+			var mergedSub subst.Substitutions
+			if skip == 1 {
+				currentSub := subst.MakeSubstitution(childSym.getTerm().ToMeta(), symQuery.getTerm())
+				tmp3 := subst.Substitutions{currentSub}
+				// Ok Commat Idoms doesn't works because ??????????????????????????????
+				if len(currentEnv) == 0 {
+					mergedSub = tmp3
+				} else {
+					mergedSub, _ = subst.MergeSubstitutions(currentEnv, tmp3)
+				}
+			} else {
+				mergedSub = currentEnv
+			}
+
+			// Verify
+			if !mergedSub.Equals(subst.Failure()) {
+				matches := child.retrieveRec(seq[skip:], mergedSub)
+				ch <- matches
+			}
+
+		}
+
+		// First element is a meta
+
+	} else if symQuery.getSymbol().IsMeta() && !isExactMatch {
+
+		// Reverse of the situation with the previous if.
+		// The symbol from seq ( parameter of this function ) is a Meta, meaning we skip the current term of dNode because it will be unify
+		// e.g dNode = a, seq = [x] so a |-> x and we got to the next term of the dNode
+
+		var mergedSub subst.Substitutions
+
+		if child.GetArity() == 0 {
+			currentSub := subst.MakeSubstitution(symQuery.getTerm().ToMeta(), childSym.getTerm()) // Create a new substitution
+			tmp3 := subst.Substitutions{currentSub}
+			if len(currentEnv) == 0 {
+				mergedSub = tmp3
+			} else {
+				mergedSub, _ = subst.MergeSubstitutions(currentEnv, tmp3)
+			}
+		} else {
+			mergedSub = currentEnv
+		}
+
+		if !mergedSub.Equals(subst.Failure()) {
+			childResults := child.SkipTreeTermAndContinue(child.GetArity(), seq[1:], mergedSub)
+			ch <- childResults
+		}
+
+	} else {
+		// No recursive call or return
+	}
+
 }
 
 /*****************************/
@@ -752,11 +730,6 @@ func (dNode DiscriminationNode) InsertFormulaListToDataStructure(lf Lib.List[AST
 func (dNode DiscriminationNode) Unify(inputFormula AST.Form) (bool, []subst.MixedSubstitutions) {
 
 	candidates := dNode.RetrieveUnifiables(inputFormula)
-
-	for _, elem := range candidates {
-		fmt.Println("Pred", elem.getPred().ToString(), "Subs", elem.GetSubs().ToString())
-	}
-
 	var mixed []subst.MixedSubstitutions
 	var found bool
 
@@ -817,4 +790,373 @@ func (dNode DiscriminationNode) UnifyTerm(inputTerm AST.Term) (bool, []subst.Mix
 		}
 	}
 	return found, mixed
+}
+
+///////////////////////////////////////////////
+///////////////////////////////////////////////
+///////////////////////////////////////////////
+///////////////////////////////////////////////
+///////////////////////////////////////////////
+///////////////////////////////////////////////
+///////////////////////////////////////////////
+///////////////////////////////////////////////
+///////////////////////////////////////////////
+///////////////////////////////////////////////
+///////////////////////////////////////////////
+///////////////////////////////////////////////
+///////////////////////////////////////////////
+///////////////////////////////////////////////
+///////////////////////////////////////////////
+///////////////////////////////////////////////
+///////////////////////////////////////////////
+///////////////////////////////////////////////
+///////////////////////////////////////////////
+///////////////////////////////////////////////
+///////////////////////////////////////////////
+///////////////////////////////////////////////
+///////////////////////////////////////////////
+///////////////////////////////////////////////
+///////////////////////////////////////////////
+///////////////////////////////////////////////
+///////////////////////////////////////////////
+///////////////////////////////////////////////
+///////////////////////////////////////////////
+///////////////////////////////////////////////
+///////////////////////////////////////////////
+///////////////////////////////////////////////
+///////////////////////////////////////////////
+///////////////////////////////////////////////
+///////////////////////////////////////////////
+///////////////////////////////////////////////
+
+func parseTerm2(t AST.Term) Lib.List[SymbolType] {
+	res := Lib.NewList[SymbolType]()
+
+	switch term := t.(type) {
+
+	// if term is a function or cst, add and call his args
+	case AST.Fun:
+
+		funSansArgs := AST.MakerFun(term.GetID(), term.GetTyArgs(), Lib.NewList[AST.Term]())
+		first_element := makeSymbolType(createNodeElement(funSansArgs), term.GetArgs().Len())
+		fmt.Println("ParserTerm2 case Fun", term.GetName())
+		res.Append(first_element)
+		for _, arg := range term.GetArgs().GetSlice() {
+			res.Append(parseTerm2(arg).GetSlice()...)
+		}
+
+	// Case meta, we have to transform it
+	case AST.Meta:
+		fmt.Println("ParserTerm2 case Meta", term.GetName())
+
+		res.Append(makeSymbolType(createNodeElement(term), 0)) // Add the new Meta to the return slice
+
+	case AST.Id:
+		fmt.Println("ParserTerm2 case Id", term.GetName())
+
+		funSansArgs := AST.MakerFun(term, Lib.NewList[AST.Ty](), Lib.NewList[AST.Term]())
+		first_element := makeSymbolType(createNodeElement(funSansArgs), 0)
+		res.Append(first_element)
+
+	default:
+		fmt.Println("Default parseTerm2 name", term.GetName())
+		fmt.Println("Default parseTerm2 index ", term.GetIndex())
+	}
+	return res
+
+}
+
+func (dNode DiscriminationNode) SkipTreeTermAndContinue2(needed int, remainingQuery []SymbolType, substitutions subst.Substitutions) []CandidatResult {
+
+	var subs []CandidatResult
+	// End of recursion
+	if needed == 0 {
+		return dNode.retrieveRec2(remainingQuery, substitutions)
+	}
+	for _, child := range dNode.getChildren().GetSlice() {
+		newNeeded := needed - 1 + child.GetArity() // 0 if Meta, Else Arity of the Term
+		matches := child.SkipTreeTermAndContinue2(newNeeded, remainingQuery, substitutions)
+		subs = append(subs, matches...)
+	}
+	return subs
+
+}
+
+func (dNode DiscriminationNode) Unify2(inputFormula AST.Form) (bool, []subst.MixedSubstitutions) {
+
+	fmt.Println("Unify2 AST.Form", inputFormula.ToString())
+
+	candidates := dNode.RetrieveUnifiables2(inputFormula)
+	var mixed []subst.MixedSubstitutions
+	var found bool
+
+	fmt.Println("Unify2 candidates taille ", len(candidates))
+
+	predFormula, isPred := inputFormula.(AST.Pred)
+	if !isPred {
+		fmt.Println("Bug InputFormula n'est pas castable en PRED")
+		return false, nil
+	}
+
+	fmt.Println("Unify2 AST.Pred", predFormula.ToString())
+
+	queryTerm := subst.TransformPred(predFormula)
+
+	for _, possibleMatch := range candidates {
+
+		fmt.Println("Unify2 candidates taille N°2 ", len(candidates))
+
+		currentSubst := possibleMatch.GetSubs()
+
+		fmt.Println("Candidat Term", possibleMatch.getPred().ToString())
+		fmt.Println("Candidat Subs", possibleMatch.GetSubs().ToString())
+
+		possibleMatchTerm := subst.TransformPred(possibleMatch.getPred())
+
+		fmt.Println("PossibleMatchterm avant Robinson : ", possibleMatchTerm.ToString())
+		fmt.Println("QueryTerm avant Robinson : ", queryTerm.ToString())
+
+		finalSubst := subst.AddUnification(possibleMatchTerm, queryTerm, currentSubst)
+
+		if !finalSubst.Equals(subst.Failure()) {
+
+			fmt.Println("Unification reussit avec Term  : ", possibleMatchTerm.ToString())
+
+			found = true
+			matching := subst.MakeMatchingSubstitutions(inputFormula, finalSubst)
+			mixed = append(mixed, matching.ToMixed())
+		} else {
+
+			fmt.Println("Unification echoue avec Term  : ", possibleMatchTerm.ToString())
+
+		}
+	}
+	return found, mixed
+}
+
+func (dNode DiscriminationNode) UnifyTerm2(inputTerm AST.Term) (bool, []subst.MixedTermSubstitutions) {
+	var mixed []subst.MixedTermSubstitutions
+	var found bool
+
+	seq := parseTerm2(inputTerm).GetSlice()
+
+	for _, elem := range seq {
+		fmt.Println("seq Parser Symbol", elem.getSymbol().ToString())
+		fmt.Println("seq Parser arite", elem.GetArity())
+	}
+
+	candidates := dNode.retrieveRec2(seq, subst.MakeEmptySubstitution())
+
+	fmt.Println("Unify2 len Candidat", len(candidates))
+
+	for _, possibleMatch := range candidates {
+		currentSubst := possibleMatch.GetSubs()
+		candidateTerm := subst.TransformPred(possibleMatch.getPred()) // Pred -> Term
+
+		finalSubst := subst.AddUnification(inputTerm, candidateTerm, currentSubst)
+
+		if !finalSubst.Equals(subst.Failure()) {
+			found = true
+			mixMatch := subst.MixMatchSubstitutions{
+				Tof:   Lib.MkLeft[AST.Term, AST.Form](inputTerm),
+				Subst: finalSubst,
+			}
+			mixed = append(mixed, mixMatch.ToMixedTerm()) // All the subs returned
+		}
+	}
+	return found, mixed
+}
+
+// Take a Sequence of SymbolType and return the first AST.Term + the remaining sequence
+func ReconstructTerm(seq []SymbolType) (AST.Term, []SymbolType) {
+	if len(seq) == 0 {
+		return nil, seq
+	}
+
+	head := seq[0]
+	arite := head.GetArity()
+	term := head.getTerm()
+
+	fmt.Println("ReconstructTerm head Terme", term.ToString())
+	fmt.Println("ReconstructTerm head Arite", arite)
+
+	switch t := term.(type) {
+
+	case AST.Fun:
+
+		fmt.Println("reconstructTerm Cas Fun")
+		currentSeq := seq[1:]
+		args := Lib.NewList[AST.Term]()
+		for i := 0; i < arite; i++ {
+			var arg AST.Term
+			arg, currentSeq = ReconstructTerm(currentSeq)
+			args.Append(arg)
+		}
+		return AST.MakerFun(t.GetID(), t.GetTyArgs(), args), currentSeq // Create Fun
+
+	case AST.Meta:
+		fmt.Println("reconstructTerm Cas Meta")
+		return t, seq[1:] // Go next
+
+	default:
+
+		fmt.Println("reconstructTerm Cas Default")
+		fmt.Println("t index", t.GetIndex())
+		fmt.Println("t name", t.GetName())
+		fmt.Println("t isFun", t.IsFun())
+		fmt.Println("t isMeta", t.IsMeta())
+
+		return nil, seq[1:] // Error type
+	}
+}
+
+func (dNode DiscriminationNode) RetrieveUnifiables2(t AST.Form) []CandidatResult {
+	predFormula, _ := t.(AST.Pred)
+	termQuery := subst.TransformPred(predFormula)
+
+	seq := parseTerm2(termQuery).GetSlice()
+	Env := subst.Substitutions{}
+	return dNode.retrieveRec2(seq, Env)
+}
+
+func (dNode DiscriminationNode) retrieveRec2(seq []SymbolType, currentEnv subst.Substitutions) []CandidatResult {
+
+	ch := make(chan []CandidatResult)
+	var results []CandidatResult
+
+	var wg sync.WaitGroup
+
+	if len(seq) == 0 { // End of recursion
+
+		for _, p := range dNode.getLeafFor().GetSlice() {
+			results = append(results, MakeCandidat(p, currentEnv))
+		}
+		return results
+	}
+
+	// Work goroutine
+	for _, child := range dNode.children.GetSlice() {
+
+		wg.Add(1) // Create exactly 1 goroutine
+		go retrieveCase2(seq, currentEnv, child, ch, &wg)
+	}
+
+	// Main goroutine waiting until all the goroutine stop
+	go func() {
+		wg.Wait()
+		close(ch)
+	}()
+
+	for matches := range ch {
+
+		results = append(results, matches...)
+
+	}
+
+	return results
+}
+
+func retrieveCase2(seq []SymbolType, currentEnv subst.Substitutions, child DiscriminationNode, ch chan<- []CandidatResult, wg *sync.WaitGroup) {
+
+	defer wg.Done()
+	symQuery := seq[0] // First Element
+
+	fmt.Println("SymQuery Debut symbol", symQuery.getSymbol().ToString())
+	fmt.Println("SymQuery Debut arite ", symQuery.GetArity())
+
+	isExactMatch := child.symbol.Equals(symQuery)
+	if isExactMatch { // Exact Match
+		matches := child.retrieveRec2(seq[1:], currentEnv) // Exact Match -> Search next element
+		ch <- matches
+	}
+
+	childSym := child.getSymbol() // child is meta or cst
+
+	// Case the child is a AST.Meta
+	if childSym.getSymbol().IsMeta() && !isExactMatch {
+
+		fmt.Println("SymQuery Child symbol", symQuery.getSymbol().ToString())
+		fmt.Println("SymQuery Child arite ", symQuery.GetArity())
+
+		// We noticed that the term of the dNode is a Meta
+		// Meaning that we can skip the current term of the seq ( paramater of this function ) bc it will be unify with the current term
+		// e.g dNode = x, seq = [f,a] so [f,a] |-> x and we skip 2 because GetSbTermLength of [f,a] is 2
+
+		fmt.Println("Cas Enfant Meta : Symbol", child.getSymbol().getSymbol().ToString())
+
+		queryTerm, restSeq := ReconstructTerm(seq)
+
+		for _, elem := range restSeq {
+			fmt.Println("Cas Enfant Meta : resteSequence", elem.getSymbol().ToString())
+		}
+
+		if queryTerm != nil {
+
+			fmt.Println("Cas Enfant Meta : childSym", childSym.getTerm().ToString())
+			fmt.Println("Cas Enfant Meta : queryTerm", queryTerm.ToString())
+			fmt.Println("Cas Enfant Meta : currentEnv", currentEnv.ToString())
+
+			fmt.Println("childSym Fun", childSym.getTerm().IsFun())
+			fmt.Println("childSym Fun", queryTerm.IsFun())
+			fmt.Println("childSym Meta", childSym.getTerm().IsMeta())
+			fmt.Println("childSym Meta", queryTerm.IsMeta())
+
+			mergedSub := subst.AddUnification(childSym.getTerm(), queryTerm, currentEnv) // Robinson Call
+
+			fmt.Println("Cas Enfant Meta : mergeSub", mergedSub.ToString())
+
+			if !mergedSub.Equals(subst.Failure()) {
+
+				fmt.Println("Cas Enfant Meta mergeSub : Bool True")
+
+				matches := child.retrieveRec2(restSeq, mergedSub)
+				ch <- matches
+			} else {
+				fmt.Println("Cas Enfant Meta mergeSub : Bool False")
+			}
+		}
+
+	} else if symQuery.getSymbol().IsMeta() && !isExactMatch {
+
+		fmt.Println("SymQuery Meta symbol", symQuery.getSymbol().ToString())
+		fmt.Println("SymQuery Meta arite ", symQuery.GetArity())
+
+		var mergedSub subst.Substitutions
+
+		if child.GetArity() == 0 {
+
+			childTerm := childSym.getTerm()
+			var properTerm AST.Term = childTerm
+
+			// If for ??? reason it's a AST.id, we transform it to AST.Fun
+			if id, ok := childTerm.(AST.Id); ok {
+				properTerm = AST.MakerFun(id, Lib.NewList[AST.Ty](), Lib.NewList[AST.Term]())
+			}
+
+			currentSub := subst.MakeSubstitution(symQuery.getTerm().ToMeta(), properTerm)
+			tmp3 := subst.Substitutions{currentSub}
+			if len(currentEnv) == 0 {
+				mergedSub = tmp3
+			} else {
+				mergedSub, _ = subst.MergeSubstitutions(currentEnv, tmp3)
+			}
+		} else {
+			// Si l'arbre contient une fonction (arité > 0), ses arguments sont plus bas dans l'arbre.
+			// On reporte l'unification de CETTE variable pour ne pas crasher Robinson.
+			mergedSub = currentEnv
+		}
+
+		if !mergedSub.Equals(subst.Failure()) {
+			// On saute le nombre de nœuds correspondants à l'arité dans l'arbre
+			childResults := child.SkipTreeTermAndContinue2(child.GetArity(), seq[1:], mergedSub)
+			ch <- childResults
+		}
+
+	} else {
+
+		fmt.Println("SymQuery Mort symbol", symQuery.getSymbol().ToString())
+		fmt.Println("SymQuery Mort arite ", symQuery.GetArity())
+
+		// No recursive call or return
+	}
 }
