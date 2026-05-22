@@ -79,3 +79,10 @@ func (ctx *NormalizerContext) GetNormalizedMeta(originalMeta AST.Meta) AST.Meta 
 
 	return newMeta
 }
+
+func (ctx *NormalizerContext) Reset() {
+
+	ctx.counter = 0
+	ctx.mapping = make(map[string]AST.Meta)
+
+}
