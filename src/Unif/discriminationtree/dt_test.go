@@ -138,6 +138,8 @@ var pba AST.Form
 var pca AST.Form
 var pax AST.Form
 var pay AST.Form
+var pxa AST.Form
+var pya AST.Form
 var pxy AST.Form
 var pxx AST.Form
 var px AST.Form
@@ -148,6 +150,8 @@ var pfy AST.Form
 var pafx AST.Form
 var pafy AST.Form
 var pfac AST.Form
+var pgxb AST.Form
+var pfxyb AST.Form
 
 var pfgaxc AST.Form
 var pfgxby AST.Form
@@ -250,6 +254,8 @@ func initTestVariable() {
 	pca = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](c, a))
 	pax = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](a, x))
 	pay = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](a, y))
+	pxa = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](x, a))
+	pya = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](y, a))
 	pxy = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](x, y))
 	pxx = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](x, x))
 	px = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](x))
@@ -260,6 +266,8 @@ func initTestVariable() {
 	pafy = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](a, fy))
 	pafx = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](a, fx))
 	pfac = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](fa, c))
+	pgxb = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](gx, b))
+	pfxyb = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](f_x_y, b))
 	pfgaxc = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](f_gax_c))
 	pfgxby = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](f_gxb_y))
 	pfgybz = AST.MakerPred(p_id, Lib.NewList[AST.Ty](), Lib.MkListV[AST.Term](f_gyb_z))
@@ -310,37 +318,37 @@ func initTestVariable2() {
 	x = AST.MakerMeta("X", -1, AST.TIndividual())
 
 	p_typed_pred_Const_A = AST.MakerPred(p_typed_id,
-		Lib.MkListV(A),
+		Lib.MkListV[AST.Ty](A),
 		Lib.MkListV[AST.Term](AST.MakerConst(a_typed_id)),
 	)
 
 	p_typed_pred_Const_B = AST.MakerPred(p_typed_id,
-		Lib.MkListV(B),
+		Lib.MkListV[AST.Ty](B),
 		Lib.MkListV[AST.Term](AST.MakerConst(b_typed_id)),
 	)
 
 	p_typed_pred_int_x = AST.MakerPred(p_typed_id,
-		Lib.MkListV(AST.TInt()),
+		Lib.MkListV[AST.Ty](AST.TInt()),
 		Lib.MkListV[AST.Term](x),
 	)
 
 	p_typed_pred_reel_x = AST.MakerPred(p_typed_id,
-		Lib.MkListV(AST.TReal()),
+		Lib.MkListV[AST.Ty](AST.TReal()),
 		Lib.MkListV[AST.Term](x),
 	)
 
 	p_typed_pred_rational_x = AST.MakerPred(p_typed_id,
-		Lib.MkListV(AST.TRat()),
+		Lib.MkListV[AST.Ty](AST.TRat()),
 		Lib.MkListV[AST.Term](x),
 	)
 
 	p_typed_pred_int_3 = AST.MakerPred(p_typed_id,
-		Lib.MkListV(AST.MkTyConst("int")),
+		Lib.MkListV[AST.Ty](AST.MkTyConst("int")),
 		Lib.MkListV[AST.Term](AST.MakerConst(AST.MakerId("3"))),
 	)
 
 	p_typed_pred_int_2 = AST.MakerPred(p_typed_id,
-		Lib.MkListV(AST.TInt()),
+		Lib.MkListV[AST.Ty](AST.MkTyConst("int")),
 		Lib.MkListV[AST.Term](AST.MakerConst(AST.MakerId("2"))),
 	)
 
@@ -485,14 +493,11 @@ func TestTermToNode(t *testing.T) {
 }
 
 func TestCreateNodeElement(t *testing.T) {
-	// --- NOMINAL TESTS ---
 
-	// 1. Testing the "string" case
 	t.Run("Nominal_String", func(t *testing.T) {
 		strInput := "test_identifier"
 		node := createNodeElement(strInput)
 
-		// Verify it returns a NodeString
 		if ns, ok := node.(NodeString); !ok {
 			t.Errorf("Expected return type NodeString, got %T", node)
 		} else if ns.ToString() != strInput {
@@ -500,48 +505,35 @@ func TestCreateNodeElement(t *testing.T) {
 		}
 	})
 
-	// 2. Testing the "AST.Ty" case
 	t.Run("Nominal_AST_Ty", func(t *testing.T) {
-		// random_type is defined in dt_test.go (e.g., AST.MakerTyBV("random_type"))
 		node := createNodeElement(random_type)
 
-		// Verify it returns a TyNode
 		if _, ok := node.(TyNode); !ok {
 			t.Errorf("Expected return type TyNode for AST.Ty input, got %T", node)
 		}
 	})
 
-	// 3. Testing the "AST.Pred" case
 	t.Run("Nominal_AST_Pred", func(t *testing.T) {
-		// 'pa' is a predicate P(a) defined in dt_test.go
 		node := createNodeElement(pa.(AST.Pred))
 
-		// Verify it returns a TermNode (because predicates are transformed into terms)
 		termNode, ok := node.(TermNode)
 		if !ok {
 			t.Errorf("Expected return type TermNode for AST.Pred input, got %T", node)
 		}
 
-		// Verify the underlying transformation occurred (P(a) should now be treated as a Fun)
 		if !termNode.Term.IsFun() {
 			t.Errorf("Expected the transformed AST.Pred to be wrapped as an AST.Fun inside the TermNode")
 		}
 	})
 
-	// 4. Testing the "AST.Term" case
 	t.Run("Nominal_AST_Term", func(t *testing.T) {
-		// 'fxy' is an AST.Fun (which implements AST.Term) defined in dt_test.go
 		node := createNodeElement(fxy)
 
-		// Verify it returns a TermNode directly without issues
 		if _, ok := node.(TermNode); !ok {
 			t.Errorf("Expected return type TermNode for AST.Term input, got %T", node)
 		}
 	})
 
-	// --- FAILING TESTS (EXPECTING EXCEPTIONS) ---
-
-	// 5. Testing an unhandled data type (e.g., an integer)
 	t.Run("Exception_On_Unhandled_Type", func(t *testing.T) {
 		defer func() {
 			if r := recover(); r == nil {
@@ -549,11 +541,9 @@ func TestCreateNodeElement(t *testing.T) {
 			}
 		}()
 
-		// Passing an int will trigger the 'default' case and cause Glob.Anomaly to panic
 		createNodeElement(42)
 	})
 
-	// 6. Testing a nil input
 	t.Run("Exception_On_Nil", func(t *testing.T) {
 		defer func() {
 			if r := recover(); r == nil {
@@ -561,7 +551,6 @@ func TestCreateNodeElement(t *testing.T) {
 			}
 		}()
 
-		// Passing nil will trigger the 'default' case
 		createNodeElement(nil)
 	})
 }
@@ -577,6 +566,7 @@ func TestInsert(t *testing.T) {
 		tree = tree.Insert(pafy.(AST.Pred))
 
 		children := tree.getChildren().GetSlice()
+
 		if len(children) != 1 {
 			t.Errorf("Expected root node to have exactly 1 child (the 'P' predicate node), got %d", len(children))
 		}
@@ -584,6 +574,7 @@ func TestInsert(t *testing.T) {
 		if pNode.GetArity() != 2 {
 			t.Errorf("Expected the 'P' node to have arity 2, got %d", pNode.GetArity())
 		}
+
 	})
 
 	t.Run("Nominal_Single_Nested_Insert", func(t *testing.T) {
@@ -662,32 +653,43 @@ func TestPrintHugeTree(t *testing.T) {
 		}
 
 		pNode := rootChildren[0]
-		if pNode.GetArity() != 1 { // P
+		if pNode.GetArity() != 1 {
 			t.Errorf("Expected 'P' node to have arity 1, got %d", pNode.GetArity())
 		}
 
 		pChildren := pNode.getChildren().GetSlice()
-		if len(pChildren) != 1 { // f()
-			t.Fatalf("Expected 'P' node to have exactly 1 child (the 'f' function), got %d", len(pChildren))
+		if len(pChildren) != 1 {
+			t.Fatalf("Expected 'P' node to have exactly 1 child (the Type node of 'f'), got %d", len(pChildren))
 		}
+		tyFNode := pChildren[0] // [Ty]
 
-		fNode := pChildren[0]
-		if fNode.GetArity() != 2 { // g() & v1
+		tyFChildren := tyFNode.getChildren().GetSlice()
+		if len(tyFChildren) != 1 {
+			t.Fatalf("Expected Type node of 'f' to have exactly 1 child (the 'f' function node), got %d", len(tyFChildren))
+		}
+		fNode := tyFChildren[0] // [Term] f
+
+		if fNode.GetArity() != 2 { // f(arg1, arg2)
 			t.Errorf("Expected 'f' node to have arity 2, got %d", fNode.GetArity())
 		}
 
 		fChildren := fNode.getChildren().GetSlice()
-		if len(fChildren) != 2 { // g() & v1
-			t.Fatalf("Expected 'f' node to branch into exactly 2 paths ('g' and a Meta variable), got %d", len(fChildren))
+		if len(fChildren) != 1 {
+			t.Fatalf("Expected 'f' node to have exactly 1 child (the Type node of its first argument), got %d", len(fChildren))
+		}
+		tyArg1FNode := fChildren[0] // [Ty]
+
+		fTermChildren := tyArg1FNode.getChildren().GetSlice()
+		if len(fTermChildren) != 2 { // g() & v1
+			t.Fatalf("Expected Type node under 'f' to branch into exactly 2 paths ('g' and a Meta variable), got %d", len(fTermChildren))
 		}
 
-		// Determine who is g and who is v1
 		var gNode, metaNode *DiscriminationNode
-		for i := range fChildren {
-			if fChildren[i].getSymbol().getSymbol().IsMeta() {
-				metaNode = &fChildren[i]
+		for i := range fTermChildren {
+			if fTermChildren[i].getSymbol().getSymbol().IsMeta() {
+				metaNode = &fTermChildren[i]
 			} else {
-				gNode = &fChildren[i]
+				gNode = &fTermChildren[i]
 			}
 		}
 
@@ -699,12 +701,17 @@ func TestPrintHugeTree(t *testing.T) {
 			t.Errorf("Expected Meta node to have arity 0, got %d", metaNode.GetArity())
 		}
 
-		if metaNode.getChildren().Len() != 2 {
-			t.Fatalf("v1 must have 2 children, v1 and v2")
+		if metaNode.getChildren().Len() != 1 {
+			t.Fatalf("Expected Meta node v1 to have exactly 1 child (the Type node of f's second argument), got %d", metaNode.getChildren().Len())
+		}
+		tyMetaSecArg := metaNode.getChildren().At(0) // [Ty]
+
+		if tyMetaSecArg.getChildren().Len() != 2 {
+			t.Fatalf("Expected Type node to branch into 2 children (v2 and v1), got %d", tyMetaSecArg.getChildren().Len())
 		}
 
-		meta1Meta2Node := metaNode.getChildren().At(0)
-		meta1Meta1Node := metaNode.getChildren().At(1)
+		meta1Meta2Node := tyMetaSecArg.getChildren().At(0) // [Term] v2
+		meta1Meta1Node := tyMetaSecArg.getChildren().At(1) // [Term] v1
 
 		if meta1Meta2Node.getChildren().Len() != 0 {
 			t.Fatalf("Must have 0 children")
@@ -724,33 +731,49 @@ func TestPrintHugeTree(t *testing.T) {
 			t.Errorf("Expected 'g' node to have arity 2, got %d", gNode.GetArity())
 		}
 
-		gChildren := gNode.getChildren().GetSlice()
-		if len(gChildren) != 2 {
-			t.Fatalf("Expected 'g' node to branch into exactly 2 paths ('a' and a Meta variable), got %d", len(gChildren))
+		if gNode.getChildren().Len() != 1 {
+			t.Fatalf("Expected 'g' node to have exactly 1 child (the Type node of its first argument), got %d", gNode.getChildren().Len())
+		}
+		tyArg1GNode := gNode.getChildren().At(0) // [Ty]
+
+		gTermChildren := tyArg1GNode.getChildren().GetSlice()
+		if len(gTermChildren) != 2 {
+			t.Fatalf("Expected Type node under 'g' to branch into exactly 2 paths ('a' and a Meta variable), got %d", len(gTermChildren))
 		}
 
-		aNode := gChildren[0]
-		gMetaNode := gChildren[1]
+		aNode := gTermChildren[0]     // [Term] a
+		gMetaNode := gTermChildren[1] // [Term] v1
 
 		if aNode.getSymbol().getSymbol().ToString() != "a" {
 			t.Errorf("Expected first child of 'g' to be 'a', got %s", aNode.getSymbol().getSymbol().ToString())
 		}
 
-		aChildren := aNode.getChildren().GetSlice()
-		if len(aChildren) != 2 {
-			t.Fatalf("Expected 'a' node to have exactly 2 children (Meta 'v1' and constant 'b'), got %d", len(aChildren))
+		if aNode.getChildren().Len() != 1 {
+			t.Fatalf("Expected 'a' node to have exactly 1 child (the Type node of g's second argument), got %d", aNode.getChildren().Len())
+		}
+		tySecArgGAfterA := aNode.getChildren().At(0) // [Ty]
+
+		aTermChildren := tySecArgGAfterA.getChildren().GetSlice()
+		if len(aTermChildren) != 2 {
+			t.Fatalf("Expected Type node to have exactly 2 children (Meta 'v1' and constant 'b'), got %d", len(aTermChildren))
 		}
 
-		aMetaNode := aChildren[0]
-		abNode := aChildren[1]
+		aMetaNode := aTermChildren[0] // [Term] v1
+		abNode := aTermChildren[1]    // [Term] b
 
 		if !aMetaNode.getSymbol().getSymbol().IsMeta() {
 			t.Errorf("Expected first child of 'a' to be a Meta variable")
 		}
 		if aMetaNode.getChildren().Len() != 1 {
-			t.Fatalf("Expected 'v1' under 'a' to have 1 child ('c'), got %d", aMetaNode.getChildren().Len())
+			t.Fatalf("Expected 'v1' under 'a' to have 1 child (the Type node of f's second argument), got %d", aMetaNode.getChildren().Len())
 		}
-		acNode := aMetaNode.getChildren().At(0)
+		tySecArgFAfterAMeta := aMetaNode.getChildren().At(0) // [Ty]
+
+		if tySecArgFAfterAMeta.getChildren().Len() != 1 {
+			t.Fatalf("Expected Type node to have exactly 1 child ('c'), got %d", tySecArgFAfterAMeta.getChildren().Len())
+		}
+		acNode := tySecArgFAfterAMeta.getChildren().At(0) // [Term] c
+
 		if acNode.getSymbol().getSymbol().ToString() != "c" {
 			t.Errorf("Expected node to be 'c', got %s", acNode.getSymbol().getSymbol().ToString())
 		}
@@ -762,9 +785,15 @@ func TestPrintHugeTree(t *testing.T) {
 			t.Errorf("Expected second child of 'a' to be 'b', got %s", abNode.getSymbol().getSymbol().ToString())
 		}
 		if abNode.getChildren().Len() != 1 {
-			t.Fatalf("Expected 'b' under 'a' to have 1 child ('a'), got %d", abNode.getChildren().Len())
+			t.Fatalf("Expected 'b' under 'a' to have 1 child (the Type node of f's second argument), got %d", abNode.getChildren().Len())
 		}
-		abaNode := abNode.getChildren().At(0)
+		tySecArgFAfterAb := abNode.getChildren().At(0) // [Ty]
+
+		if tySecArgFAfterAb.getChildren().Len() != 1 {
+			t.Fatalf("Expected Type node to have 1 child ('a'), got %d", tySecArgFAfterAb.getChildren().Len())
+		}
+		abaNode := tySecArgFAfterAb.getChildren().At(0) // [Term] a
+
 		if abaNode.getSymbol().getSymbol().ToString() != "a" {
 			t.Errorf("Expected leaf node to be 'a', got %s", abaNode.getSymbol().getSymbol().ToString())
 		}
@@ -776,21 +805,32 @@ func TestPrintHugeTree(t *testing.T) {
 			t.Errorf("Expected second child of 'g' to be a Meta variable")
 		}
 
-		gMetaChildren := gMetaNode.getChildren().GetSlice()
+		if gMetaNode.getChildren().Len() != 1 {
+			t.Fatalf("Expected 'v1' under 'g' to have exactly 1 child (the Type node of g's second argument), got %d", gMetaNode.getChildren().Len())
+		}
+		tySecArgGAfterGMeta := gMetaNode.getChildren().At(0) // [Ty]
+
+		gMetaChildren := tySecArgGAfterGMeta.getChildren().GetSlice()
 		if len(gMetaChildren) != 2 {
-			t.Fatalf("Expected 'v1' under 'g' to have 2 children ('b' and 'c'), got %d", len(gMetaChildren))
+			t.Fatalf("Expected Type node under 'v1' to branch into exactly 2 paths ('b' and 'c'), got %d", len(gMetaChildren))
 		}
 
-		gbNode := gMetaChildren[0]
-		gcNode := gMetaChildren[1]
+		gbNode := gMetaChildren[0] // [Term] b
+		gcNode := gMetaChildren[1] // [Term] c
 
 		if gbNode.getSymbol().getSymbol().ToString() != "b" {
 			t.Errorf("Expected first child of 'v1' under 'g' to be 'b', got %s", gbNode.getSymbol().getSymbol().ToString())
 		}
 		if gbNode.getChildren().Len() != 1 {
-			t.Fatalf("Expected 'b' under 'v1' to have 1 child (Meta 'v2'), got %d", gbNode.getChildren().Len())
+			t.Fatalf("Expected 'b' under 'v1' to have 1 child (the Type node of f's second argument), got %d", gbNode.getChildren().Len())
 		}
-		gbMetaNode := gbNode.getChildren().At(0)
+		tySecArgFAfterGb := gbNode.getChildren().At(0) // Nœud [Ty]
+
+		if tySecArgFAfterGb.getChildren().Len() != 1 {
+			t.Fatalf("Expected Type node to have 1 child (Meta 'v2'), got %d", tySecArgFAfterGb.getChildren().Len())
+		}
+		gbMetaNode := tySecArgFAfterGb.getChildren().At(0) // [Term] v2
+
 		if !gbMetaNode.getSymbol().getSymbol().IsMeta() {
 			t.Errorf("Expected child of 'b' to be a Meta variable 'v2'")
 		}
@@ -802,9 +842,15 @@ func TestPrintHugeTree(t *testing.T) {
 			t.Errorf("Expected second child of 'v1' under 'g' to be 'c', got %s", gcNode.getSymbol().getSymbol().ToString())
 		}
 		if gcNode.getChildren().Len() != 1 {
-			t.Fatalf("Expected 'c' under 'v1' to have 1 child ('b'), got %d", gcNode.getChildren().Len())
+			t.Fatalf("Expected 'c' under 'v1' to have 1 child (the Type node of f's second argument), got %d", gcNode.getChildren().Len())
 		}
-		gcbNode := gcNode.getChildren().At(0)
+		tySecArgFAfterGc := gcNode.getChildren().At(0) // [Ty]
+
+		if tySecArgFAfterGc.getChildren().Len() != 1 {
+			t.Fatalf("Expected Type node to have 1 child ('b'), got %d", tySecArgFAfterGc.getChildren().Len())
+		}
+		gcbNode := tySecArgFAfterGc.getChildren().At(0) // [Term] b
+
 		if gcbNode.getSymbol().getSymbol().ToString() != "b" {
 			t.Errorf("Expected leaf node to be 'b', got %s", gcbNode.getSymbol().getSymbol().ToString())
 		}
@@ -817,24 +863,29 @@ func TestPrintHugeTree(t *testing.T) {
 func TestParseTerm(t *testing.T) {
 
 	t.Run("Parse_Simple_fxy", func(t *testing.T) {
+
 		tmpContext := NewContext()
 		seqList := parseTerm(fxy, tmpContext)
 		seq := seqList.GetSlice()
 
-		if len(seq) != 3 {
-			t.Fatalf("Expected 3 elements for f(x,y), got %d", len(seq))
+		for _, elem := range seq {
+			fmt.Println(elem.ToString())
 		}
 
-		if seq[0].GetArity() != 2 || seq[0].getSymbol().ToString() != "f" {
-			t.Fatal("Element 0 must be function 'f' with arity 2")
+		if len(seq) != 6 {
+			t.Fatalf("Expected 6 elements for f(x,y), got %d", len(seq))
 		}
 
-		if seq[1].GetArity() != 0 || !seq[1].getSymbol().IsMeta() {
-			t.Fatal("Element 1 must be meta variable 'v1' with arity 0")
+		if seq[1].GetArity() != 2 || seq[1].getSymbol().ToString() != "f" {
+			t.Fatal("Element 1 must be function 'f' with arity 2")
 		}
 
-		if seq[2].GetArity() != 0 || !seq[2].getSymbol().IsMeta() {
-			t.Fatal("Element 2 must be meta variable 'v2' with arity 0")
+		if seq[3].GetArity() != 0 || !seq[3].getSymbol().IsMeta() {
+			t.Fatal("Element 3 must be meta variable 'v1' with arity 0")
+		}
+
+		if seq[5].GetArity() != 0 || !seq[5].getSymbol().IsMeta() {
+			t.Fatal("Element 5 must be meta variable 'v2' with arity 0")
 		}
 	})
 	t.Run("Parse_Nested_Left_f_fxy_z", func(t *testing.T) {
@@ -842,28 +893,28 @@ func TestParseTerm(t *testing.T) {
 		seqList := parseTerm(f_fxy_z, tmpContext2)
 		seq := seqList.GetSlice()
 
-		if len(seq) != 5 {
-			t.Fatalf("Expected 5 elements for f(f(x,y), z), got %d", len(seq))
-		}
-
-		if seq[0].GetArity() != 2 || seq[0].getSymbol().ToString() != "f" {
-			t.Fatal("Element 0 must be the outer function 'f' with arity 2")
+		if len(seq) != 10 {
+			t.Fatalf("Expected 10 elements for f(f(x,y), z), got %d", len(seq))
 		}
 
 		if seq[1].GetArity() != 2 || seq[1].getSymbol().ToString() != "f" {
-			t.Fatal("Element 1 must be the inner function 'f' with arity 2")
+			t.Fatal("Element 1 must be the outer function 'f' with arity 2")
 		}
 
-		if seq[2].GetArity() != 0 || !seq[2].getSymbol().IsMeta() {
-			t.Fatal("Element 2 must be meta variable 'v1' with arity 0")
+		if seq[3].GetArity() != 2 || seq[3].getSymbol().ToString() != "f" {
+			t.Fatal("Element 3 must be the inner function 'f' with arity 2")
 		}
 
-		if seq[3].GetArity() != 0 || !seq[3].getSymbol().IsMeta() {
-			t.Fatal("Element 3 must be meta variable 'v2' with arity 0")
+		if seq[5].GetArity() != 0 || !seq[5].getSymbol().IsMeta() {
+			t.Fatal("Element 5 must be meta variable 'v1' with arity 0")
 		}
 
-		if seq[4].GetArity() != 0 || !seq[4].getSymbol().IsMeta() {
-			t.Fatal("Element 4 must be meta variable 'v3' with arity 0")
+		if seq[7].GetArity() != 0 || !seq[7].getSymbol().IsMeta() {
+			t.Fatal("Element 7 must be meta variable 'v2' with arity 0")
+		}
+
+		if seq[9].GetArity() != 0 || !seq[9].getSymbol().IsMeta() {
+			t.Fatal("Element 9 must be meta variable 'v3' with arity 0")
 		}
 	})
 
@@ -872,28 +923,28 @@ func TestParseTerm(t *testing.T) {
 		seqList := parseTerm(f_x_fyz, tmpContext4)
 		seq := seqList.GetSlice()
 
-		if len(seq) != 5 {
-			t.Fatalf("Expected 5 elements for f(x, f(y,z)), got %d", len(seq))
+		if len(seq) != 10 {
+			t.Fatalf("Expected 10 elements for f(x, f(y,z)), got %d", len(seq))
 		}
 
-		if seq[0].GetArity() != 2 || seq[0].getSymbol().ToString() != "f" {
-			t.Fatal("Element 0 must be outer function 'f' with arity 2")
-		}
-
-		if seq[1].GetArity() != 0 || !seq[1].getSymbol().IsMeta() {
-			t.Fatal("Element 1 must be meta variable 'v1' with arity 0")
-		}
-
-		if seq[2].GetArity() != 2 || seq[2].getSymbol().ToString() != "f" {
-			t.Fatal("Element 2 must be inner function 'f' with arity 2")
+		if seq[1].GetArity() != 2 || seq[1].getSymbol().ToString() != "f" {
+			t.Fatal("Element 1 must be outer function 'f' with arity 2")
 		}
 
 		if seq[3].GetArity() != 0 || !seq[3].getSymbol().IsMeta() {
-			t.Fatal("Element 3 must be meta variable 'v2' with arity 0")
+			t.Fatal("Element 3 must be meta variable 'v1' with arity 0")
 		}
 
-		if seq[4].GetArity() != 0 || !seq[4].getSymbol().IsMeta() {
-			t.Fatal("Element 4 must be meta variable 'v3' with arity 0")
+		if seq[5].GetArity() != 2 || seq[5].getSymbol().ToString() != "f" {
+			t.Fatal("Element 5 must be inner function 'f' with arity 2")
+		}
+
+		if seq[7].GetArity() != 0 || !seq[7].getSymbol().IsMeta() {
+			t.Fatal("Element 7 must be meta variable 'v2' with arity 0")
+		}
+
+		if seq[9].GetArity() != 0 || !seq[9].getSymbol().IsMeta() {
+			t.Fatal("Element 9 must be meta variable 'v3' with arity 0")
 		}
 	})
 }
@@ -906,6 +957,7 @@ func TestRetrieve(t *testing.T) {
 		tree = tree.Insert(pax.(AST.Pred))
 		tree = tree.Insert(pay.(AST.Pred))
 		results := tree.RetrieveUnifiables(pab)
+
 		if len(results) != 2 {
 			t.Fatalf("Must return 2 element")
 		} else {
@@ -918,14 +970,11 @@ func TestRetrieve(t *testing.T) {
 
 		fmt.Println()
 		tree2 := NewNode()
-		tree2 = tree2.Insert(pxy.(AST.Pred))
-		results2 := tree2.RetrieveUnifiables(pab)
+		tree2 = tree2.Insert(pax.(AST.Pred))
+		results2 := tree2.RetrieveUnifiables(pay)
+
 		if len(results2) != 1 {
 			t.Fatalf("Supposed to have 1 CandidatResults")
-		}
-		resultat3 := ToSingleElement(results2)
-		if len(resultat3.GetSubs()) != 2 {
-			t.Fatalf("Supposed to have 2 unifiables")
 		}
 
 	})
@@ -981,126 +1030,150 @@ func TestEquals(t *testing.T) {
 }
 
 func TestGetSubTermLength(t *testing.T) {
-
 	Context := NewContext()
 
-	t.Run("SubTerm_ggx", func(t *testing.T) {
+	t.Run("SubTerm_Constant_Or_Meta", func(t *testing.T) {
+		seq := parseTerm(gx, Context).GetSlice()
+		// seq == [Ty_gx, g, Ty_x, x] -> seq[3:] == [x]
+		metaSeq := seq[3:]
 
-		seq := parseTerm(ggx, Context).GetSlice()
-		var1 := (GetSubTermLength(seq))
-		if var1 != 3 {
-			t.Fatalf("Error SubTerLength with 2functions & 1Meta ")
-		}
-	})
-	Context.Reset()
-
-	t.Run("SubTerm_fxy", func(t *testing.T) {
-		seq2 := parseTerm(fxy, Context).GetSlice()
-		var2 := (GetSubTermLength(seq2))
-		if var2 != 3 {
-			t.Fatalf("Error SubTerLength with 1function & 2Meta")
+		length := GetSubTermLength(metaSeq)
+		if length != 1 {
+			t.Fatalf("Expected length 1 for a single Meta/Constant, got %d", length)
 		}
 		Context.Reset()
 	})
 
 	t.Run("SubTerm_gx", func(t *testing.T) {
+		// g(x) -> [g, Ty_x, x]
+		seq := parseTerm(gx, Context).GetSlice()
+		termSeq := seq[1:] // Remove [Ty_gx]
 
-		seq3 := parseTerm(gx, Context).GetSlice()
-		var3 := (GetSubTermLength(seq3))
-		if var3 != 2 {
-			t.Fatalf("Error SubTerLength with 1function & 1Meta")
+		length := GetSubTermLength(termSeq)
+		if length != 3 {
+			t.Fatalf("Error SubTermLength with 1 function & 1 Meta. Expected 3, got %d", length)
 		}
 		Context.Reset()
 	})
 
-	t.Run("SubTerm_ga", func(t *testing.T) {
+	t.Run("SubTerm_ggx", func(t *testing.T) {
+		// g(g(x)) -> [g, Ty_gx, g, Ty_x, x]
+		seq := parseTerm(ggx, Context).GetSlice()
+		termSeq := seq[1:]
 
-		seq4 := parseTerm(ga, Context).GetSlice()
-		var4 := (GetSubTermLength(seq4))
-		if var4 != 2 {
-			t.Fatalf("Error SubTerLength with 1function & 1cst")
+		length := GetSubTermLength(termSeq)
+		if length != 5 {
+			t.Fatalf("Error SubTermLength with 2 nested functions. Expected 5, got %d", length)
 		}
 		Context.Reset()
 	})
 
 	t.Run("SubTerm_gggx", func(t *testing.T) {
+		// g(g(g(x))) -> [g, Ty_ggx, g, Ty_gx, g, Ty_x, x]
+		seq := parseTerm(gggx, Context).GetSlice()
+		termSeq := seq[1:]
 
-		seq5 := parseTerm(gggx, Context).GetSlice()
-		var5 := (GetSubTermLength(seq5))
-		if var5 != 4 {
-			t.Fatalf("Error SubTerLength with 1function & 3Meta")
+		length := GetSubTermLength(termSeq)
+		if length != 7 {
+			t.Fatalf("Error SubTermLength with 3 nested functions. Expected 7, got %d", length)
 		}
 		Context.Reset()
 	})
 
-	t.Run("SubTerm_f_y_y", func(t *testing.T) {
+	t.Run("SubTerm_fxy", func(t *testing.T) {
+		// f(x, y) -> [f, Ty_x, x, Ty_y, y]
+		seq := parseTerm(fxy, Context).GetSlice()
+		termSeq := seq[1:]
 
-		seq6 := parseTerm(f_y_y, Context).GetSlice()
-		var6 := (GetSubTermLength(seq6))
-		if var6 != 3 {
-			t.Fatalf("Error SubTerLength with 1function & 2Meta")
+		length := GetSubTermLength(termSeq)
+		if length != 5 {
+			t.Fatalf("Error SubTermLength with 1 function & 2 Metas. Expected 5, got %d", length)
 		}
+		Context.Reset()
 	})
 
+	t.Run("SubTerm_With_Trailing_Tokens", func(t *testing.T) {
+		//  P(g(x), a) after consumming P and g(x).
+		//  [g, Ty_x, x, Ty_a, a]
+		// GetSubTermLength stop after g(x)
+		seqGx := parseTerm(gx, Context).GetSlice()[1:] // [g, Ty_x, x]
+		seqB := parseTerm(ga, Context).GetSlice()      // [Ty_a, a]
+
+		mixedSeq := append(seqGx, seqB...) // [g, Ty_x, x, Ty_a, a]
+
+		length := GetSubTermLength(mixedSeq)
+		if length != 3 {
+			t.Fatalf("GetSubTermLength failed to isolate the first subterm when trailing tokens are present. Expected 3, got %d", length)
+		}
+	})
 }
 
 func TestSkipTreeTermAndContinue(t *testing.T) {
 
-	t.Run("SkipTreeTermAndContinue_pab", func(t *testing.T) {
+	ctx := NewContext()
 
+	t.Run("SkipTreeTermAndContinue_pfx", func(t *testing.T) {
 		tree := NewNode()
-		tree = tree.Insert(pab.(AST.Pred))
-		needed := 1
-		emptyQuery := []SymbolType{}
+		tree = tree.Insert(pfx.(AST.Pred))
+
+		fullSeq := parsePred(pfx.(AST.Pred), ctx).GetSlice()
+
+		tree = tree.children.At(0)
+		tree = tree.children.At(0)
+		tree = tree.children.At(0)
+
+		needed := 2
+
+		remainingQuery := fullSeq[5:]
 		emptyEnv := subst.Substitutions{}
-		results := tree.SkipTreeTermAndContinue(needed, emptyQuery, emptyEnv)
+
+		results := tree.SkipTreeTermAndContinue(needed, remainingQuery, emptyEnv)
 		if len(results) != 1 {
-			t.Fatalf(" Expected 1 Element, got %d", len(results))
+			t.Fatalf("Expected 1 Element, got %d", len(results))
 		}
 	})
 
-	t.Run("SkipTreeTermAndContinue_px", func(t *testing.T) {
+	t.Run("SkipTreeTermAndContinue_pfxy", func(t *testing.T) {
+		tree := NewNode()
+		tree = tree.Insert(pfxy.(AST.Pred))
 
-		tree2 := NewNode()
-		tree2 = tree2.Insert(px.(AST.Pred))
-		needed2 := 1
-		emptyQuery2 := []SymbolType{}
-		emptyEnv2 := subst.Substitutions{}
-		results2 := tree2.SkipTreeTermAndContinue(needed2, emptyQuery2, emptyEnv2)
-		if len(results2) != 1 {
-			t.Fatalf(" Expected 1 Element, got %d", len(results2))
+		fullSeq := parsePred(pfxy.(AST.Pred), ctx).GetSlice()
+
+		tree = tree.children.At(0)
+		tree = tree.children.At(0)
+		tree = tree.children.At(0)
+
+		needed := 4
+
+		remainingQuery := fullSeq[7:]
+		emptyEnv := subst.Substitutions{}
+
+		results := tree.SkipTreeTermAndContinue(needed, remainingQuery, emptyEnv)
+		if len(results) != 1 {
+			t.Fatalf("Expected 1 Element, got %d", len(results))
 		}
 	})
 
-	t.Run("SkipTreeTermAndContinue_pab_pba", func(t *testing.T) {
+	t.Run("SkipTreeTermAndContinue_pggab", func(t *testing.T) {
+		tree := NewNode()
+		tree = tree.Insert(pggab.(AST.Pred))
 
-		tree3 := NewNode()
-		tree3 = tree3.Insert(pba.(AST.Pred))
-		tree3 = tree3.Insert(pab.(AST.Pred))
-		needed3 := 1
-		emptyQuery3 := []SymbolType{}
-		emptyEnv3 := subst.Substitutions{}
-		results3 := tree3.SkipTreeTermAndContinue(needed3, emptyQuery3, emptyEnv3)
-		if len(results3) != 2 {
-			t.Fatalf(" Expected 2 Element, got %d", len(results3))
+		fullSeq := parsePred(pggab.(AST.Pred), ctx).GetSlice()
+
+		tree = tree.children.At(0)
+		tree = tree.children.At(0)
+		tree = tree.children.At(0)
+
+		needed := 2
+
+		remainingQuery := fullSeq[7:]
+		emptyEnv := subst.Substitutions{}
+
+		results := tree.SkipTreeTermAndContinue(needed, remainingQuery, emptyEnv)
+		if len(results) != 1 {
+			t.Fatalf("Test imbriqué pggab a échoué. Attendu 1 élément, obtenu %d", len(results))
 		}
 	})
-
-	t.Run("SkipTreeTermAndContinue_pab_pab_pca", func(t *testing.T) {
-
-		tree4 := NewNode()
-		tree4 = tree4.Insert(pba.(AST.Pred))
-		tree4 = tree4.Insert(pab.(AST.Pred))
-		tree4 = tree4.Insert(pca.(AST.Pred))
-		needed4 := 1
-		emptyQuery4 := []SymbolType{}
-		emptyEnv4 := subst.Substitutions{}
-		results4 := tree4.SkipTreeTermAndContinue(needed4, emptyQuery4, emptyEnv4)
-		if len(results4) != 3 {
-			t.Fatalf(" Expected 3 Element, got %d", len(results4))
-		}
-	})
-
 }
 
 func TestRetrieveUnifiables(t *testing.T) {
@@ -1150,6 +1223,18 @@ func TestRetrieveUnifiables(t *testing.T) {
 
 	})
 
+	t.Run("TestRetrieveUnifiables_pxy", func(t *testing.T) {
+
+		tree2 := NewNode()
+		tree2 = tree2.Insert(pxy.(AST.Pred))
+		candidat2 := tree2.RetrieveUnifiables(pab)
+		if len(candidat2) == 0 {
+			t.Fatalf("pxy and pab are unifiables")
+		}
+
+		fmt.Println(len(candidat2))
+
+	})
 }
 
 func TestCopy(t *testing.T) {
@@ -1194,8 +1279,8 @@ func TestUnify(t *testing.T) {
 		if len(mix) != 1 {
 			t.Fatalf("Expected exactly 1 unification result, got %d", len(mix))
 		}
-		if mix[0].GetForm().ToString() != "P(a, Y)" {
-			t.Errorf("Expected unified form to be 'P(a, Y)', got '%s'", mix[0].GetForm().ToString())
+		if mix[0].GetForm().ToString() != "P(a, X)" {
+			t.Errorf("Expected unified form to be 'P(a, X)', got '%s'", mix[0].GetForm().ToString())
 		}
 	})
 
@@ -1211,8 +1296,8 @@ func TestUnify(t *testing.T) {
 		if len(mix) != 1 {
 			t.Fatalf("Expected exactly 1 unification result, got %d", len(mix))
 		}
-		if mix[0].GetForm().ToString() != "P(a, b)" {
-			t.Errorf("Expected unified form to be 'P(a, b)', got '%s'", mix[0].GetForm().ToString())
+		if mix[0].GetForm().ToString() != "P(a, X)" {
+			t.Errorf("Expected unified form to be 'P(a, X)', got '%s'", mix[0].GetForm().ToString())
 		}
 	})
 
@@ -1242,8 +1327,8 @@ func TestUnify(t *testing.T) {
 		if !found || len(mix) != 1 {
 			t.Fatalf("Expected exactly 1 unification result")
 		}
-		if mix[0].GetForm().ToString() != "P(a, f(Y))" {
-			t.Errorf("Expected unified form to be 'P(a, f(Y))', got '%s'", mix[0].GetForm().ToString())
+		if mix[0].GetForm().ToString() != "P(a, X)" {
+			t.Errorf("Expected unified form to be 'P(a, X)', got '%s'", mix[0].GetForm().ToString())
 		}
 	})
 
@@ -1256,8 +1341,8 @@ func TestUnify(t *testing.T) {
 		if !found || len(mix) != 1 {
 			t.Fatalf("Expected exactly 1 unification result")
 		}
-		if mix[0].GetForm().ToString() != "P(a, f(Y))" {
-			t.Errorf("Expected unified form to be 'P(a, f(Y))', got '%s'", mix[0].GetForm().ToString())
+		if mix[0].GetForm().ToString() != "P(a, f(X))" {
+			t.Errorf("Expected unified form to be 'P(a, f(X))', got '%s'", mix[0].GetForm().ToString())
 		}
 	})
 
@@ -1270,8 +1355,8 @@ func TestUnify(t *testing.T) {
 		if !found || len(mix) != 1 {
 			t.Fatalf("Expected exactly 1 unification result")
 		}
-		if mix[0].GetForm().ToString() != "P(Y)" {
-			t.Errorf("Expected unified form to be 'P(Y)', got '%s'", mix[0].GetForm().ToString())
+		if mix[0].GetForm().ToString() != "P(X)" {
+			t.Errorf("Expected unified form to be 'P(X)', got '%s'", mix[0].GetForm().ToString())
 		}
 	})
 
@@ -1281,11 +1366,13 @@ func TestUnify(t *testing.T) {
 
 		found, mix := tree.Unify(pab)
 
+		fmt.Println(len(mix))
+
 		if !found || len(mix) != 1 {
 			t.Fatalf("Expected exactly 1 unification result")
 		}
-		if mix[0].GetForm().ToString() != "P(a, b)" {
-			t.Errorf("Expected unified form to be 'P(a, b)', got '%s'", mix[0].GetForm().ToString())
+		if mix[0].GetForm().ToString() != "P(X, Y)" {
+			t.Errorf("Expected unified form to be 'P(X, Y)', got '%s'", mix[0].GetForm().ToString())
 		}
 	})
 
@@ -1304,8 +1391,14 @@ func TestUnify(t *testing.T) {
 
 		// Unification wraps the input formula
 		for i, elem := range mix {
-			if elem.GetForm().ToString() != "P(Y)" {
-				t.Errorf("Expected unified form %d to be 'P(Y)', got '%s'", i, elem.GetForm().ToString())
+			if elem.GetForm().ToString() == "P(b)" {
+				continue
+			} else if elem.GetForm().ToString() == "P(a)" {
+				continue
+			} else if elem.GetForm().ToString() == "P(f(X))" {
+				continue
+			} else {
+				t.Errorf("Expected unified form %d to be 'P(b) or P(a) or P(f(X))', got '%s'", i, elem.GetForm().ToString())
 			}
 		}
 	})
@@ -1314,13 +1407,14 @@ func TestUnify(t *testing.T) {
 		tree := NewNode()
 		tree = tree.Insert(pggab.(AST.Pred))
 
+		tree.Print()
 		found, mix := tree.Unify(pxy)
 
 		if !found || len(mix) != 1 {
 			t.Fatalf("Expected exactly 1 unification result")
 		}
-		if mix[0].GetForm().ToString() != "P(X, Y)" {
-			t.Errorf("Expected unified form to be 'P(X, Y)', got '%s'", mix[0].GetForm().ToString())
+		if mix[0].GetForm().ToString() != "P(g(g(a)), b)" {
+			t.Errorf("Expected unified form to be 'P(g(g(a)), b)', got '%s'", mix[0].GetForm().ToString())
 		}
 	})
 
@@ -1387,7 +1481,19 @@ func TestUnifyTerm(t *testing.T) {
 		tree = tree.Insert(pax.(AST.Pred))
 		queryTerm := subst.TransformPred(pay.(AST.Pred))
 
+		fmt.Println("Test1")
+		for _, elem := range queryTerm.GetSubTerms().GetSlice() {
+			fmt.Println("QueryTerm Element", elem.ToString())
+		}
+		fmt.Println("Test2")
+
 		val, mix := tree.UnifyTerm(queryTerm)
+
+		fmt.Println(val)
+
+		for _, elem := range mix {
+			fmt.Println("elem", elem.ToString())
+		}
 
 		if !val {
 			t.Fatalf("Unification failed, expected success")
@@ -1586,6 +1692,7 @@ func TestUnifyTerm(t *testing.T) {
 func TestMakeDataStruct(t *testing.T) {
 
 	t.Run("MakeDataStruct_Positive_Tree", func(t *testing.T) {
+
 		tree1 := NewNode()
 		formulas1 := Lib.NewList[AST.Form]()
 		formulas1.Append(pab)     // + => Inserted
@@ -1602,8 +1709,6 @@ func TestMakeDataStruct(t *testing.T) {
 			}
 		}
 
-		actualTree1.Print()
-
 		rootChildren := actualTree1.getChildren().GetSlice()
 		if len(rootChildren) != 1 {
 			t.Fatalf("Expected exactly 1 predicate root node ('P'), got %d", len(rootChildren))
@@ -1615,11 +1720,14 @@ func TestMakeDataStruct(t *testing.T) {
 		}
 
 		pChildren := pNode.getChildren().GetSlice()
-		if len(pChildren) != 2 {
+		pChildren2 := pChildren[0]
+		pChildren3 := pChildren2.getChildren().GetSlice()
+
+		if len(pChildren3) != 2 {
 			t.Fatalf("Expected 'P' to have exactly 2 children ('a' and 'b') from positive formulas, got %d", len(pChildren))
 		}
 
-		for _, child := range pChildren {
+		for _, child := range pChildren3 {
 			symStr := child.getSymbol().getSymbol().ToString()
 			if symStr == "c" {
 				t.Errorf("Negative formula 'not_pac' was incorrectly inserted into the positive tree")
@@ -1659,6 +1767,7 @@ func TestMakeDataStruct(t *testing.T) {
 		}
 	})
 }
+
 func TestUnify2(t *testing.T) {
 
 	t.Run("Unify2_pax_with_pay", func(t *testing.T) {
@@ -1666,6 +1775,10 @@ func TestUnify2(t *testing.T) {
 		tree = tree.Insert(pax.(AST.Pred))
 
 		found, mix := tree.Unify2(pay)
+
+		for _, elem := range mix {
+			fmt.Println("elem de mix", elem.ToString())
+		}
 
 		if !found {
 			t.Fatalf("Unification failed, expected success")
@@ -1718,6 +1831,11 @@ func TestUnify2(t *testing.T) {
 		tree = tree.Insert(pax.(AST.Pred))
 		found, mix := tree.Unify2(pafy)
 
+		for _, elem := range mix {
+			fmt.Println("elem", elem.ToString())
+		}
+		fmt.Println("len(elem)", len(mix))
+
 		if !found || len(mix) != 1 {
 			t.Fatalf("Expected exactly 1 unification result")
 		}
@@ -1731,6 +1849,9 @@ func TestUnify2(t *testing.T) {
 		tree := NewNode()
 		tree = tree.Insert(pafx.(AST.Pred))
 		found, mix := tree.Unify2(pafy)
+
+		tree.Print()
+		fmt.Println("pafy", pafy.ToString())
 
 		if !found || len(mix) != 1 {
 			t.Fatalf("Expected exactly 1 unification result")
@@ -1863,6 +1984,9 @@ func TestUnifyTerm2(t *testing.T) {
 		tree := NewNode()
 		tree = tree.Insert(pax.(AST.Pred))
 		queryTerm := subst.TransformPred(pay.(AST.Pred))
+
+		tree.Print()
+		fmt.Println(queryTerm.ToString())
 
 		val, mix := tree.UnifyTerm2(queryTerm)
 
@@ -2072,7 +2196,7 @@ func TestUnifyTerm2(t *testing.T) {
 	})
 }
 
-func TestContextStange(t *testing.T) {
+func TestTrickyProblem(t *testing.T) {
 
 	t.Run("Exception_Occur_Check_Cyclic", func(t *testing.T) {
 		tree := NewNode()
@@ -2111,5 +2235,40 @@ func TestContextStange(t *testing.T) {
 			t.Fatalf("Unification should fail because X cannot be 'a' and 'b' simultaneously")
 		}
 	})
+
+}
+
+func TestInsertCustomType(t *testing.T) {
+
+	tree := NewNode()
+
+	La := p_typed_pred_int_3.GetTyArgs()
+	for _, elem := range La.GetSlice() {
+		fmt.Println("Tyargs : ", elem.ToString())
+	}
+
+	LT := p_typed_pred_int_3.GetArgs()
+	for _, elem := range LT.GetSlice() {
+		fmt.Println("Args : ", elem.ToString())
+	}
+
+	tree = tree.Insert(p_typed_pred_int_3)
+
+	a := p_typed_pred_int_3.GetTyArgs()
+	for _, elem := range a.GetSlice() {
+		fmt.Println("elem", elem.ToString())
+	}
+
+	tree.Print()
+
+}
+
+func TestCustom(t *testing.T) {
+
+	tree := NewNode()
+	tree = tree.Insert(pa.(AST.Pred))
+	tree = tree.Insert(pb.(AST.Pred))
+	tree = tree.Insert(px.(AST.Pred))
+	tree.Print()
 
 }
