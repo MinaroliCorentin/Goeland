@@ -912,14 +912,7 @@ func (dNode DiscriminationNode) UnifyTerm(inputTerm AST.Term) (bool, []subst.Mix
 
 	seq := parseTerm(inputTerm, tmpContext).GetSlice()
 
-	var seq2 []SymbolType
-	for i, elem := range seq {
-		if i > 0 {
-			seq2 = append(seq2, elem)
-		}
-	}
-
-	candidates := dNode.retrieveRec(seq2, subst.MakeEmptySubstitution())
+	candidates := dNode.retrieveRec(seq, subst.MakeEmptySubstitution())
 
 	fmt.Println("Len Candidates", len(candidates))
 
