@@ -168,6 +168,7 @@ func robinsonUnify(term1, term2 AST.Term, s Substitutions) Substitutions {
 
 		case AST.Fun:
 			if !t1.GetID().Equals(t2.GetID()) {
+				fmt.Printf("ID WRONG T1 ID: %v, T2 ID: %v\n", t1.GetID(), t2.GetID())
 				return Failure()
 			}
 			args1 := t1.GetArgs()
@@ -175,6 +176,7 @@ func robinsonUnify(term1, term2 AST.Term, s Substitutions) Substitutions {
 			fmt.Printf("%v\n", Lib.ListToString(args1))
 			fmt.Printf("%v\n", Lib.ListToString(args2))
 			if args1.Len() != args2.Len() {
+				fmt.Printf("ARITY WRONG T1 Arity: %d, T2 Arity: %d\n", args1.Len(), args2.Len())
 				return Failure()
 			}
 			for i := range args1.GetSlice() {

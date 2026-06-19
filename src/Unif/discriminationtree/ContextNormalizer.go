@@ -58,10 +58,13 @@ func NewContext() *NormalizerContext {
 	}
 }
 
+// Transform the discriminationTree to a perfect disriminationTree.
+// Using a Map, when visiting a branch, each Meta is stored and transform into a NormalizedMeta. This allow memory gain.
+// Branch 1 : f(x), Branch 2 : f(y) => Branch 1 : f(v1), Branch 2 : f(v1) => We notice it's the same one => Possible to fuse them to save memory
 func (ctx *NormalizerContext) GetNormalizedMeta(originalMeta AST.Meta) AST.Meta {
 
-	originalName := originalMeta.GetName() // Get meeta Name
-	orignalType := originalMeta.GetTy()
+	originalName := originalMeta.GetName() // Get meta Name
+	orignalType := originalMeta.GetTy()    // Get Meta Ty
 
 	// Contains check
 	if normalizedMeta, exists := ctx.mapping[originalName]; exists {

@@ -202,36 +202,49 @@ func searchClosureRule(f AST.Form, st State) (bool, []substitution.MixedSubstitu
 	case AST.Pred:
 		res, subst := st.GetTreeNeg().Unify(f)
 		if res {
-			new_list := Lib.NewList[substitution.MixedSubstitutions]()
+			returnList := Lib.NewList[substitution.MixedSubstitutions]()
+
+			running_subst := st.applied_subst.GetSubst()
+
 			for _, e := range subst {
-				subst2, res2 := substitution.MergeMixedSubstitutions(e.GetSubsts(), st.applied_subst.GetSubst())
-				if res2 {
+				subst2, isCompatible := substitution.MergeMixedSubstitutions(e.GetSubsts(), running_subst)
+
+				if isCompatible {
+					running_subst = subst2
+
 					new_subst := substitution.MakeMatchingSubstitutions(e.GetForm(), substitution.ToSubstitutions(subst2))
-					new_list.Append(new_subst.ToMixed())
+					returnList.Append(new_subst.ToMixed())
 				}
 			}
-			return !new_list.Empty(), new_list.GetSlice()
-		} else {
-			return false, nil
+
+			return !returnList.Empty(), returnList.GetSlice()
 		}
+		return false, nil
 
 	case AST.Not:
 		switch nf.GetForm().(type) {
 		case AST.Pred:
 			res, subst := st.GetTreePos().Unify(nf.GetForm())
 			if res {
-				new_list := Lib.NewList[substitution.MixedSubstitutions]()
+				returnList := Lib.NewList[substitution.MixedSubstitutions]()
+
+				running_subst := st.applied_subst.GetSubst()
+
 				for _, e := range subst {
-					subst2, res2 := substitution.MergeMixedSubstitutions(e.GetSubsts(), st.applied_subst.GetSubst())
-					if res2 {
+					subst2, isCompatible := substitution.MergeMixedSubstitutions(e.GetSubsts(), running_subst)
+
+					if isCompatible {
+						running_subst = subst2
+
 						new_subst := substitution.MakeMatchingSubstitutions(e.GetForm(), substitution.ToSubstitutions(subst2))
-						new_list.Append(new_subst.ToMixed())
+						returnList.Append(new_subst.ToMixed())
 					}
 				}
-				return !new_list.Empty(), new_list.GetSlice()
-			} else {
-				return false, nil
+
+				return !returnList.Empty(), returnList.GetSlice()
 			}
+			return false, nil
+
 		default:
 			return false, nil
 		}

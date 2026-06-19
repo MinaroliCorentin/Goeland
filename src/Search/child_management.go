@@ -32,13 +32,12 @@
 package Search
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/GoelandProver/Goeland/Core"
 	"github.com/GoelandProver/Goeland/Glob"
 	"github.com/GoelandProver/Goeland/Lib"
-	"github.com/GoelandProver/Goeland/Unif/substitution"
+	subst "github.com/GoelandProver/Goeland/Unif/substitution"
 )
 
 /* Arguments for waitChildren function & utilitary subfunctions */
@@ -137,10 +136,6 @@ func (ds *destructiveSearch) childrenClosedByThemselves(args wcdArgs, proofChild
 
 	// No need to append the current substitution, because the children returns it anyway (if it exists)
 	// So here, the current substitution should be empty. Otherwise, there's a big bug somewhere else.
-	if !args.currentSubst.IsEmpty() {
-		return errors.New("current substitution is not empty but children close by themselves which shouldn't happen")
-	}
-
 	// Updates the proof using the proofs of the children of the node.
 	args.st = updateProof(args, proofChildren)
 
