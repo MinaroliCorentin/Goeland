@@ -343,12 +343,12 @@ func initTestVariable2() {
 	)
 
 	p_typed_pred_int_x = AST.MakerPred(p_typed_id,
-		Lib.MkListV[AST.Ty](AST.TInt()),
+		Lib.MkListV[AST.Ty](AST.MkTyConst("int")),
 		Lib.MkListV[AST.Term](x),
 	)
 
 	p_typed_pred_int_x_y_z = AST.MakerPred(p_typed_id,
-		Lib.MkListV[AST.Ty](AST.TInt()),
+		Lib.MkListV[AST.Ty](AST.MkTyConst("int")),
 		Lib.MkListV[AST.Term](x, y, z),
 	)
 
@@ -1832,7 +1832,6 @@ func TestInsertCustomType(t *testing.T) {
 
 		tree := NewNode()
 		tree = tree.Insert(p_typed_pred_int_3)
-		tree.Print()
 
 		t1 := tree.getChildren()
 		if t1.Len() != 1 {
@@ -1871,14 +1870,204 @@ func TestInsertCustomType(t *testing.T) {
 		tree = tree.Insert(p_typed_pred_int_2_int_3_b)
 		tree = tree.Insert(p_typed_pred_int_x_y_z)
 		tree = tree.Insert(p_typed_pred_reel_x_y_z)
+		tree = tree.Insert(p_typed_pred_int_2_double_4_a)
 
+		// 1. Root Level
+		rootChildren := tree.getChildren()
+		if rootChildren.Len() != 1 {
+			t.Fatalf("Expected root to have exactly 1 child, got %d", rootChildren.Len())
+		}
+		pNode := rootChildren.At(0)
+		if pNode.toString() != "p" {
+			t.Fatalf("Expected 'p', got '%s'", pNode.toString())
+		}
+
+		// 2. Under 'p' -> 'int' and '$real'
+		pChildren := pNode.getChildren()
+		if pChildren.Len() != 2 {
+			t.Fatalf("Expected 'p' to have 2 children, got %d", pChildren.Len())
+		}
+
+		intNode := pChildren.At(0)
+		if intNode.toString() != "int" {
+			t.Fatalf("Expected first child of 'p' to be 'int', got '%s'", intNode.toString())
+		}
+
+		realNode := pChildren.At(1)
+		if realNode.toString() != "$real" {
+			t.Fatalf("Expected second child of 'p' to be '$real', got '%s'", realNode.toString())
+		}
+
+		// -----------------------------------------------------
+		// 3. Under 'int' -> '2', 'v1', 'double'
+		// -----------------------------------------------------
+		intChildren := intNode.getChildren()
+		if intChildren.Len() != 3 {
+			t.Fatalf("Expected 'int' to have 3 children ('2', 'v1', 'double'), got %d", intChildren.Len())
+		}
+
+		// Branch: int -> 2 -> 3 -> a/b
+		node2 := intChildren.At(0)
+		if node2.toString() != "2" {
+			t.Fatalf("Expected '2', got '%s'", node2.toString())
+		}
+		node2Children := node2.getChildren()
+		if node2Children.Len() != 1 {
+			t.Fatalf("Expected '2' to have 1 child ('3'), got %d", node2Children.Len())
+		}
+		node3 := node2Children.At(0)
+		if node3.toString() != "3" {
+			t.Fatalf("Expected '3', got '%s'", node3.toString())
+		}
+		node3Children := node3.getChildren()
+		if node3Children.Len() != 2 {
+			t.Fatalf("Expected '3' to have 2 children ('a' and 'b'), got %d", node3Children.Len())
+		}
+		if node3Children.At(0).toString() != "a" || node3Children.At(1).toString() != "b" {
+			t.Fatalf("Expected children of '3' to be 'a' and 'b'")
+		}
+
+		// Branch: int -> v1 -> v2 -> v3
+		nodeV1 := intChildren.At(1)
+		if nodeV1.toString() != "v1" {
+			t.Fatalf("Expected 'v1', got '%s'", nodeV1.toString())
+		}
+		nodeV1Children := nodeV1.getChildren()
+		if nodeV1Children.Len() != 1 || nodeV1Children.At(0).toString() != "v2" {
+			t.Fatalf("Expected 'v1' to have child 'v2'")
+		}
+		nodeV2Children := nodeV1Children.At(0).getChildren()
+		if nodeV2Children.Len() != 1 || nodeV2Children.At(0).toString() != "v3" {
+			t.Fatalf("Expected 'v2' to have child 'v3'")
+		}
+
+		// Branch: int -> double -> $i -> 2 -> 4 -> a
+		nodeDouble := intChildren.At(2)
+		if nodeDouble.toString() != "double" {
+			t.Fatalf("Expected 'double', got '%s'", nodeDouble.toString())
+		}
+		nodeDoubleChildren := nodeDouble.getChildren()
+		if nodeDoubleChildren.Len() != 1 || nodeDoubleChildren.At(0).toString() != "$i" {
+			t.Fatalf("Expected 'double' to have child '$i'")
+		}
+		nodeIChildren := nodeDoubleChildren.At(0).getChildren()
+		if nodeIChildren.Len() != 1 || nodeIChildren.At(0).toString() != "2" {
+			t.Fatalf("Expected '$i' to have child '2'")
+		}
+		node2DoubleChildren := nodeIChildren.At(0).getChildren()
+		if node2DoubleChildren.Len() != 1 || node2DoubleChildren.At(0).toString() != "4" {
+			t.Fatalf("Expected '2' to have child '4'")
+		}
+		node4Children := node2DoubleChildren.At(0).getChildren()
+		if node4Children.Len() != 1 || node4Children.At(0).toString() != "a" {
+			t.Fatalf("Expected '4' to have child 'a'")
+		}
+
+		// -----------------------------------------------------
+		// 4. Under '$real' -> v1 -> v2 -> v3
+		// -----------------------------------------------------
+		realChildren := realNode.getChildren()
+		if realChildren.Len() != 1 {
+			t.Fatalf("Expected '$real' to have 1 child ('v1'), got %d", realChildren.Len())
+		}
+		realV1 := realChildren.At(0)
+		if realV1.toString() != "v1" {
+			t.Fatalf("Expected 'v1' under '$real', got '%s'", realV1.toString())
+		}
+		realV1Children := realV1.getChildren()
+		if realV1Children.Len() != 1 || realV1Children.At(0).toString() != "v2" {
+			t.Fatalf("Expected 'v1' to have child 'v2'")
+		}
+		realV2Children := realV1Children.At(0).getChildren()
+		if realV2Children.Len() != 1 || realV2Children.At(0).toString() != "v3" {
+			t.Fatalf("Expected 'v2' to have child 'v3'")
+		}
 	})
 
 	t.Run("Insert_different_typed_var", func(t *testing.T) {
 
 		tree := NewNode()
 		tree = tree.Insert(p_typed_pred_int_2_double_4_a)
-		tree.Print()
+		tree = tree.Insert(p_typed_pred_int_2_double_4_b)
+		tree = tree.Insert(p_typed_pred_int_2_double_4_x)
+
+		// 1. Root Level validation
+		rootChildren := tree.getChildren()
+		if rootChildren.Len() != 1 {
+			t.Fatalf("Expected root to have exactly 1 child, got %d", rootChildren.Len())
+		}
+		pNode := rootChildren.At(0)
+		if pNode.toString() != "p" {
+			t.Fatalf("Expected node to be 'p', got '%s'", pNode.toString())
+		}
+
+		// 2. Under 'p' -> 'int'
+		pChildren := pNode.getChildren()
+		if pChildren.Len() != 1 {
+			t.Fatalf("Expected 'p' to have exactly 1 child, got %d", pChildren.Len())
+		}
+		intNode := pChildren.At(0)
+		if intNode.toString() != "int" {
+			t.Fatalf("Expected node to be 'int', got '%s'", intNode.toString())
+		}
+
+		// 3. Under 'int' -> 'double'
+		intChildren := intNode.getChildren()
+		if intChildren.Len() != 1 {
+			t.Fatalf("Expected 'int' to have exactly 1 child, got %d", intChildren.Len())
+		}
+		doubleNode := intChildren.At(0)
+		if doubleNode.toString() != "double" {
+			t.Fatalf("Expected node to be 'double', got '%s'", doubleNode.toString())
+		}
+
+		// 4. Under 'double' -> '$i'
+		doubleChildren := doubleNode.getChildren()
+		if doubleChildren.Len() != 1 {
+			t.Fatalf("Expected 'double' to have exactly 1 child, got %d", doubleChildren.Len())
+		}
+		iNode := doubleChildren.At(0)
+		if iNode.toString() != "$i" {
+			t.Fatalf("Expected node to be '$i', got '%s'", iNode.toString())
+		}
+
+		// 5. Under '$i' -> '2'
+		iChildren := iNode.getChildren()
+		if iChildren.Len() != 1 {
+			t.Fatalf("Expected '$i' to have exactly 1 child, got %d", iChildren.Len())
+		}
+		node2 := iChildren.At(0)
+		if node2.toString() != "2" {
+			t.Fatalf("Expected node to be '2', got '%s'", node2.toString())
+		}
+
+		// 6. Under '2' -> '4'
+		node2Children := node2.getChildren()
+		if node2Children.Len() != 1 {
+			t.Fatalf("Expected '2' to have exactly 1 child, got %d", node2Children.Len())
+		}
+		node4 := node2Children.At(0)
+		if node4.toString() != "4" {
+			t.Fatalf("Expected node to be '4', got '%s'", node4.toString())
+		}
+
+		// 7. Under '4' -> Forks into 'a', 'b', and 'v1'
+		node4Children := node4.getChildren()
+		if node4Children.Len() != 3 {
+			t.Fatalf("Expected '4' to have exactly 3 children ('a', 'b', 'v1'), got %d", node4Children.Len())
+		}
+
+		if node4Children.At(0).toString() != "a" {
+			t.Fatalf("Expected first child of '4' to be 'a', got '%s'", node4Children.At(0).toString())
+		}
+
+		if node4Children.At(1).toString() != "b" {
+			t.Fatalf("Expected second child of '4' to be 'b', got '%s'", node4Children.At(1).toString())
+		}
+
+		if node4Children.At(2).toString() != "v1" {
+			t.Fatalf("Expected third child of '4' to be 'v1', got '%s'", node4Children.At(2).toString())
+		}
 
 	})
 }
