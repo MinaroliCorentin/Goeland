@@ -283,32 +283,50 @@ type DiscriminationNode struct {
 	symbol   SymbolType                   // Contain the AST.Term and Arity
 	children Lib.List[DiscriminationNode] // All the children of the node
 	leafFor  Lib.List[AST.Pred]           // If not empty, contains the where it come from
+
+	// Parallel to leafFor, but for trees populated with raw terms (InsertTerm)
+	// instead of predicates (Insert) - used by UnifyTerm/UnifyTermWithSubst.
+	// Kept separate from leafFor rather than merged into a single Either-typed
+	// field, since nothing in this codebase mixes both kinds of insertion on
+	// the same tree instance: it keeps this addition purely additive, with
+	// zero risk to the existing predicate-based Insert/Unify/Unify2 code.
+	termLeafFor Lib.List[AST.Term]
+
+	// Set once, on the tree returned by InsertTerm/MakeTermUnifProblem, so
+	// UnifyTermWithSubst knows which single traversal to run instead of
+	// always running both (which would double the cost of every call for
+	// no benefit, since a given tree is always exclusively one or the
+	// other in practice).
+	termOnly bool
 }
 
 // Basic Node. Create a SymbolType{nil, -1} and empty list for children and leafFor
 func NewNode() DiscriminationNode {
 	return DiscriminationNode{
-		symbol:   SymbolType{symbol: nil, arity: -1},
-		children: Lib.NewList[DiscriminationNode](),
-		leafFor:  Lib.NewList[AST.Pred](),
+		symbol:      SymbolType{symbol: nil, arity: -1},
+		children:    Lib.NewList[DiscriminationNode](),
+		leafFor:     Lib.NewList[AST.Pred](),
+		termLeafFor: Lib.NewList[AST.Term](),
 	}
 }
 
 // Basic Node with SymbolType and no empty list for children and leafFor
 func MakeDiscriminationNodeWithSym(sym SymbolType) DiscriminationNode {
 	return DiscriminationNode{
-		symbol:   sym,
-		children: Lib.NewList[DiscriminationNode](),
-		leafFor:  Lib.NewList[AST.Pred](),
+		symbol:      sym,
+		children:    Lib.NewList[DiscriminationNode](),
+		leafFor:     Lib.NewList[AST.Pred](),
+		termLeafFor: Lib.NewList[AST.Term](),
 	}
 }
 
 // Basic Node with SymbolType, children and empty List for leafFor
 func MakeDiscriminationNodeWithSymAndChildren(sym SymbolType, children Lib.List[DiscriminationNode]) DiscriminationNode {
 	return DiscriminationNode{
-		symbol:   sym,
-		children: children,
-		leafFor:  Lib.NewList[AST.Pred](),
+		symbol:      sym,
+		children:    children,
+		leafFor:     Lib.NewList[AST.Pred](),
+		termLeafFor: Lib.NewList[AST.Term](),
 	}
 }
 
@@ -326,6 +344,10 @@ func (dNode DiscriminationNode) getChildren() Lib.List[DiscriminationNode] {
 
 func (dNode DiscriminationNode) getLeafFor() Lib.List[AST.Pred] {
 	return dNode.leafFor
+}
+
+func (dNode DiscriminationNode) getTermLeafFor() Lib.List[AST.Term] {
+	return dNode.termLeafFor
 }
 
 // If NodeElement of the dNode is nil return "" else toString
@@ -369,6 +391,27 @@ func ToSingleElement(candidats []CandidatResult) CandidatResult {
 func MakeCandidat(p AST.Pred, sub subst.Substitutions) CandidatResult {
 	return CandidatResult{
 		Pred: p,
+		Subs: sub,
+	}
+}
+
+// Mirrors CandidatResult, for trees populated via InsertTerm instead of Insert.
+type TermCandidatResult struct {
+	Term AST.Term            // The raw term stored at this leaf
+	Subs subst.Substitutions // The associated substitution
+}
+
+func (Candidat TermCandidatResult) getTerm() AST.Term {
+	return Candidat.Term
+}
+
+func (Candidat TermCandidatResult) GetSubs() subst.Substitutions {
+	return Candidat.Subs
+}
+
+func MakeTermCandidat(t AST.Term, sub subst.Substitutions) TermCandidatResult {
+	return TermCandidatResult{
+		Term: t,
 		Subs: sub,
 	}
 }
@@ -581,6 +624,75 @@ func (dNode DiscriminationNode) insertRec(seq Lib.List[SymbolType], originalTerm
 /********* End insrt *********/
 /*****************************/
 
+/* Insert a raw term (as opposed to Insert, which takes a full predicate).
+ * Used to build a tree purely for term-level unification (UnifyTerm), the
+ * discriminationtree equivalent of codetree.MakeTermUnifProblem. */
+func (dNode DiscriminationNode) InsertTerm(t AST.Term) DiscriminationNode {
+
+	sym_list := parseTerm(t, NewContext())
+	result := dNode.insertTermRec(sym_list, t)
+	result.termOnly = true
+	return result
+}
+
+// Auxiliary function for InsertTerm. Mirrors insertRec exactly, but stores
+// into termLeafFor (AST.Term) instead of leafFor (AST.Pred).
+func (dNode DiscriminationNode) insertTermRec(seq Lib.List[SymbolType], originalTerm AST.Term) DiscriminationNode {
+
+	// End of recursion, time to insert
+	if seq.Len() == 0 {
+		Exist := false
+		for _, t := range dNode.getTermLeafFor().GetSlice() {
+			if t.Equals(originalTerm) {
+				Exist = true
+				break
+			}
+		}
+		if !Exist {
+			dNode.termLeafFor.Append(originalTerm)
+		}
+		return dNode
+	}
+
+	sym := seq.At(0) // Current symbol
+	childrenSlice := dNode.getChildren().GetSlice()
+
+	foundIndex := -1 // Index of the symbol if found
+	var ok = false   // Boolean if a match is found
+
+	// Looking for already existing child
+	for i, child := range childrenSlice {
+		if child.getSymbol().getSymbol().Equals(sym.getSymbol()) {
+			if child.GetArity() == sym.GetArity() {
+				foundIndex = i
+				ok = true
+				break
+			} else {
+				Glob.Anomaly("Arity Missmatch", "Same Symbol but different Arity")
+			}
+
+		}
+	}
+
+	if ok { // Child already exist
+
+		// Insert and update the sequence
+		updatedChild := childrenSlice[foundIndex].insertTermRec(seq.RemoveAt(0), originalTerm)
+		dNode.children.Upd(foundIndex, updatedChild) // Update children[foundIntex] = updateChild
+
+	} else { // if Child doesn't exist
+
+		newChild := MakeDiscriminationNodeWithSym(sym)                        // Create a new Node with the new SymbolType and his leafFor
+		updatedChild := newChild.insertTermRec(seq.RemoveAt(0), originalTerm) // Insert the rest of the sequence after the new child
+		dNode.children.Append(updatedChild)                                   // Update the children of the args node
+	}
+	return dNode
+}
+
+/*****************************/
+/******* End term insrt ******/
+/*****************************/
+
 /*****************************/
 /********** Retriev **********/
 /*****************************/
@@ -643,7 +755,11 @@ func (dNode DiscriminationNode) retrieveRec(seq []SymbolType, currentEnv subst.S
 		return results
 	}
 
-	// Work goroutine
+	// Work goroutine: fan out one goroutine per child. Each child's subtree is
+	// independent of its siblings (no shared mutable state - currentEnv is
+	// read-only here, and every recursive call gets its own fresh results
+	// slice/channel), so this is safe, and lets wide/deep subtrees be searched
+	// in parallel instead of one child at a time.
 	for _, child := range dNode.children.GetSlice() {
 
 		wg.Add(1) // Create exactly 1 goroutine
@@ -663,9 +779,10 @@ func (dNode DiscriminationNode) retrieveRec(seq []SymbolType, currentEnv subst.S
 	return results
 }
 
+// Retrieve all the Unifiable
 func retrieveCase(seq []SymbolType, currentEnv subst.Substitutions, child DiscriminationNode, ch chan<- []CandidatResult, wg *sync.WaitGroup) {
 
-	defer wg.Done()    // Stop the Goroutine in case of failure to prevent crash or unknow behavior
+	defer wg.Done()    // Always signal completion, even if this case matches nothing
 	symQuery := seq[0] // Term of the Query
 
 	// Case 1. Exact Match, we go to the next element
@@ -673,22 +790,109 @@ func retrieveCase(seq []SymbolType, currentEnv subst.Substitutions, child Discri
 	if isExactMatch {
 		matches := child.retrieveRec(seq[1:], currentEnv)
 		ch <- matches
+		return
 	}
 
 	// Case 2. The Symbol from the discriminationTree is a Meta
 	// We need to look the len of the actual term from the sequence. f(x) == 2, y == 1 and we skip the entire term
-	if child.getSymbol().getSymbol().IsMeta() && !isExactMatch {
+	if child.getSymbol().getSymbol().IsMeta() {
 		skip := GetSubTermLength(seq)
 		if skip <= len(seq) {
 			matches := child.retrieveRec(seq[skip:], currentEnv)
 			ch <- matches
 		}
+		return
 
 		// Case 3. Reverse of the Case 2.
 		// The term from the Sequence is a Meta, so we look the len of the term from the DTree and we got skip it.
-	} else if symQuery.getSymbol().IsMeta() && !isExactMatch {
+	} else if symQuery.getSymbol().IsMeta() {
 		childResults := child.SkipTreeTermAndContinue(child.GetArity(), seq[1:], currentEnv)
 		ch <- childResults
+	}
+}
+
+// Term-level mirror of SkipTreeTermAndContinue/RetrieveUnifiables/retrieveRec/
+// retrieveCase above: same exact logic, operating on termLeafFor (AST.Term)
+// instead of leafFor (AST.Pred). Deliberately does not build up any
+// substitution while walking down (case 3 below just skips structurally,
+// like the classic predicate version does) - the caller redoes a full,
+// clean Robinson unification at the end in UnifyTermWithSubst, so there is
+// nothing here that could leak the tree's internal v1/v2-style normalized
+// meta names into a caller's result (see the Unify2 fix elsewhere in this
+// file for the bug this pattern avoids).
+
+func (dNode DiscriminationNode) SkipTreeTermAndContinueTerm(needed int, remainingQuery []SymbolType, substitutions subst.Substitutions) []TermCandidatResult {
+
+	var subs []TermCandidatResult
+
+	if needed == 0 {
+		return dNode.retrieveTermRec(remainingQuery, substitutions)
+	}
+
+	for _, child := range dNode.getChildren().GetSlice() {
+		newNeeded := needed - 1 + child.GetArity()
+		matches := child.SkipTreeTermAndContinueTerm(newNeeded, remainingQuery, substitutions)
+		subs = append(subs, matches...)
+	}
+	return subs
+}
+
+func (dNode DiscriminationNode) RetrieveUnifiableTerms(t AST.Term) []TermCandidatResult {
+	seq := parseTerm(t, NewContext()).GetSlice()
+	Env := subst.Substitutions{}
+	return dNode.retrieveTermRec(seq, Env)
+}
+
+func (dNode DiscriminationNode) retrieveTermRec(seq []SymbolType, currentEnv subst.Substitutions) []TermCandidatResult {
+
+	ch := make(chan []TermCandidatResult)
+	var results []TermCandidatResult
+	var wg sync.WaitGroup
+
+	if len(seq) == 0 {
+		for _, t := range dNode.getTermLeafFor().GetSlice() {
+			results = append(results, MakeTermCandidat(t, currentEnv))
+		}
+		return results
+	}
+
+	for _, child := range dNode.children.GetSlice() {
+		wg.Add(1)
+		go retrieveCaseTerm(seq, currentEnv, child, ch, &wg)
+	}
+
+	go func() {
+		wg.Wait()
+		close(ch)
+	}()
+
+	for matches := range ch {
+		results = append(results, matches...)
+	}
+
+	return results
+}
+
+func retrieveCaseTerm(seq []SymbolType, currentEnv subst.Substitutions, child DiscriminationNode, ch chan<- []TermCandidatResult, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	symQuery := seq[0]
+
+	isExactMatch := child.symbol.Equals(symQuery)
+	if isExactMatch {
+		ch <- child.retrieveTermRec(seq[1:], currentEnv)
+		return
+	}
+
+	if child.getSymbol().getSymbol().IsMeta() {
+		skip := GetSubTermLength(seq)
+		if skip <= len(seq) {
+			ch <- child.retrieveTermRec(seq[skip:], currentEnv)
+		}
+		return
+
+	} else if symQuery.getSymbol().IsMeta() {
+		ch <- child.SkipTreeTermAndContinueTerm(child.GetArity(), seq[1:], currentEnv)
 	}
 }
 
@@ -748,10 +952,13 @@ func (dNode DiscriminationNode) Copy() subst.DataStructure {
 	}
 
 	newLeafFor := Lib.ListCpy(dNode.getLeafFor())
+	newTermLeafFor := Lib.ListCpy(dNode.getTermLeafFor())
 	return DiscriminationNode{
-		symbol:   dNode.symbol,
-		children: newChildMaster,
-		leafFor:  newLeafFor,
+		symbol:      dNode.symbol,
+		children:    newChildMaster,
+		leafFor:     newLeafFor,
+		termLeafFor: newTermLeafFor,
+		termOnly:    dNode.termOnly,
 	}
 }
 
@@ -790,6 +997,18 @@ func (dNode DiscriminationNode) InsertFormulaListToDataStructure(lf Lib.List[AST
 		}
 	}
 	return dNode
+}
+
+/* Take a list of terms and build the corresponding discrimination tree.
+ * The discriminationtree equivalent of codetree.MakeTermUnifProblem: builds
+ * a tree purely for term-level unification (UnifyTerm), as opposed to
+ * Insert/Unify which index full predicates. */
+func MakeTermUnifProblem(l Lib.List[AST.Term]) subst.DataStructure {
+	root := NewNode()
+	for _, t := range l.GetSlice() {
+		root = root.InsertTerm(t)
+	}
+	return root
 }
 
 func (dNode DiscriminationNode) Unify(inputFormula AST.Form) (bool, []subst.MixedSubstitutions) {
@@ -832,12 +1051,36 @@ func (dNode DiscriminationNode) UnifyTerm(inputTerm AST.Term) (bool, []subst.Mix
 func (dNode DiscriminationNode) UnifyTermWithSubst(inputTerm AST.Term, globalSubst subst.Substitutions) (bool, []subst.MixedTermSubstitutions) {
 	var mixed []subst.MixedTermSubstitutions
 	var found bool
-	tmpContext := NewContext()
 
-	seq := parseTerm(inputTerm, tmpContext).GetSlice()
-	candidates := dNode.retrieveRec(seq, globalSubst)
+	seq := parseTerm(inputTerm, NewContext()).GetSlice()
 
-	for _, possibleMatch := range candidates {
+	if dNode.termOnly {
+		// Term-only leaves (termLeafFor, populated via InsertTerm /
+		// MakeTermUnifProblem) - needed for trees that only ever hold raw terms.
+		termCandidates := dNode.retrieveTermRec(seq, globalSubst)
+		for _, possibleMatch := range termCandidates {
+			candidateTerm := possibleMatch.getTerm()
+			// Re-unify from the caller's own globalSubst, not from whatever
+			// possibleMatch itself carries - same reasoning as the Unify2 fix:
+			// the traversal's own bookkeeping must never leak into the result.
+			finalSubst := subst.AddUnification(inputTerm, candidateTerm, globalSubst.Copy())
+
+			if !finalSubst.Equals(subst.Failure()) {
+				found = true
+				mixMatch := subst.MixMatchSubstitutions{
+					Tof:   Lib.MkLeft[AST.Term, AST.Form](inputTerm),
+					Subst: finalSubst,
+				}
+				mixed = append(mixed, mixMatch.ToMixedTerm())
+			}
+		}
+		return found, mixed
+	}
+
+	// Predicate leaves (leafFor, populated via Insert), compared as terms via
+	// TransformPred - the original behaviour, for a tree built the "normal" way.
+	predCandidates := dNode.retrieveRec(seq, globalSubst)
+	for _, possibleMatch := range predCandidates {
 		candidateTerm := subst.TransformPred(possibleMatch.getPred())
 		finalSubst := subst.AddUnification(inputTerm, candidateTerm, globalSubst)
 
@@ -916,7 +1159,27 @@ func (dNode DiscriminationNode) Unify2(inputFormula AST.Form) (bool, []subst.Mix
 		candPred := possibleMatch.getPred()
 
 		candTermForRobinson := AST.MakerFun(candPred.GetID(), emptyTyArgs, candPred.GetArgs())
-		currentEnv := possibleMatch.GetSubs().Copy()
+
+		// NOTE: possibleMatch.GetSubs() holds whatever bindings the early-pruning
+		// traversal accumulated on its way down the tree - but those are keyed by
+		// the tree's OWN internally-normalized meta-variables (parsePred/parseTerm
+		// rename every meta to a fresh v1, v2, ... via NewContext(), purely so the
+		// tree can compare structure without caring about the caller's actual meta
+		// identities). Reusing that substitution here leaks those internal v1/v2
+		// names into the result returned to the caller, alongside the correct
+		// bindings for the caller's real query meta-variables (e.g. bse's
+		// METAEQ1/METAEQ2). A caller that expects the returned substitution to
+		// only mention its own meta-variables - like
+		// Mods/equality/bse's orderSubstForRetrieve - then chokes on the
+		// unexpected v1/v2 keys and raises a fatal "Meta EQ/NEQ not found"
+		// anomaly.
+		//
+		// The traversal's only job was to cheaply prune candidates that can't
+		// possibly match; it doesn't need to contribute anything to the final
+		// answer, since the Robinson call below re-unifies the two full terms
+		// from scratch anyway. So, exactly like the classic Unify (which starts
+		// the equivalent step from subst.Substitutions{}), start clean here too.
+		currentEnv := subst.Substitutions{}
 
 		// Final strict unification step
 		finalSubst := subst.AddUnification(candTermForRobinson, queryTermForRobinson, currentEnv)
@@ -999,7 +1262,6 @@ func (dNode DiscriminationNode) retrieveRec2(seq []SymbolType, currentEnv subst.
 }
 
 // retrieveCase2 executes backtracking logic on a specific child node. It performs pruning , unification when encountering variables.
-// retrieveCase2 executes backtracking logic. It performs SAFE early pruning.
 func retrieveCase2(seq []SymbolType, currentEnv subst.Substitutions, child DiscriminationNode, ch chan<- []CandidatResult, wg *sync.WaitGroup) {
 	defer wg.Done()
 	symQuery := seq[0]

@@ -1832,6 +1832,7 @@ func TestInsertCustomType(t *testing.T) {
 
 		tree := NewNode()
 		tree = tree.Insert(p_typed_pred_int_3)
+		tree.Print()
 
 		t1 := tree.getChildren()
 		if t1.Len() != 1 {
@@ -2182,12 +2183,6 @@ func TestNodeStringMethods(t *testing.T) {
 		}
 	})
 
-	t.Run("GetArityType", func(t *testing.T) {
-		if ns1.GetArityType() != 0 {
-			t.Fatalf("NodeString arity type should always be 0")
-		}
-	})
-
 	t.Run("Equals_Same_And_Case_Insensitive", func(t *testing.T) {
 		if !ns1.Equals(ns1) {
 			t.Errorf("Should be equal to itself")
@@ -2222,18 +2217,6 @@ func TestTermNodeMethods(t *testing.T) {
 		}
 	})
 
-	t.Run("GetArityType", func(t *testing.T) {
-		expectedRegularArity := a.GetMetaList().Len()
-		if tnRegular.GetArityType() != expectedRegularArity {
-			t.Errorf("Expected arity %d, got %d", expectedRegularArity, tnRegular.GetArityType())
-		}
-
-		expectedMetaArity := x.GetMetaList().Len()
-		if tnMeta.GetArityType() != expectedMetaArity {
-			t.Errorf("Expected arity %d, got %d", expectedMetaArity, tnMeta.GetArityType())
-		}
-	})
-
 	t.Run("Equals", func(t *testing.T) {
 		if !tnRegular.Equals(tnRegular) {
 			t.Errorf("Identical TermNodes should be equal")
@@ -2252,12 +2235,6 @@ func TestTyNodeMethods(t *testing.T) {
 	tnStandard := TyNode{Ty: AST.TIndividual()}
 	tnDifferent := TyNode{Ty: random_type}
 	tnNil := TyNode{Ty: nil}
-
-	t.Run("GetArityType", func(t *testing.T) {
-		if tnStandard.GetArityType() != 0 {
-			t.Errorf("TyNode arity type should always be 0")
-		}
-	})
 
 	t.Run("Equals", func(t *testing.T) {
 		if !tnStandard.Equals(tnStandard) {
@@ -2748,4 +2725,39 @@ func TestReconstructTerm(t *testing.T) {
 			t.Errorf("Expected remaining element to be 'b', got '%s'", remaining[0].getSymbol().ToString())
 		}
 	})
+}
+
+func TestA(t *testing.T) {
+
+	tree := NewNode()
+	tree = tree.Insert(pfx.(AST.Pred))
+	a, b := tree.Unify(px)
+	if a {
+		for _, elem := range b {
+			fmt.Println("a1", elem.ToString())
+		}
+	}
+	tree.Print()
+
+	tree2 := NewNode()
+	tree2 = tree2.Insert(pfx.(AST.Pred))
+	a2, b2 := tree2.Unify(py)
+	if a2 {
+		for _, elem := range b2 {
+			fmt.Println("a2", elem.ToString())
+		}
+	}
+	tree2.Print()
+
+	tree3 := NewNode()
+	tree3 = tree3.Insert(py.(AST.Pred))
+	tree3 = tree3.Insert(px.(AST.Pred))
+	a3, b3 := tree3.Unify(pfx)
+	if a3 {
+		for _, elem := range b3 {
+			fmt.Println("a3", elem.ToString())
+		}
+	}
+	tree3.Print()
+
 }

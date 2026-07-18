@@ -87,7 +87,7 @@ func initPluginGlobalVariables() {
 
 	if Glob.GetDt() {
 		positiveTree = discriminationtree.NewNode()
-		positiveTree = discriminationtree.NewNode()
+		negativeTree = discriminationtree.NewNode()
 	} else {
 		positiveTree = codetree.NewNode()
 		negativeTree = codetree.NewNode()

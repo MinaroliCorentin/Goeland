@@ -912,10 +912,14 @@ func (ds *destructiveSearch) selectChildren(father Communication, children *[]Co
 				new_result_subst := []Core.SubstAndForm{}
 				for _, s := range result_subst {
 					if !Lib.ListEquals(s.GetSubst(), new_current_subst.GetSubst()) {
-						err, new_subst := Core.MergeSubstAndForm(s.Copy(), new_current_subst.Copy())
+						succeeded, new_subst := Core.TryMergeSubstAndForm(s.Copy(), new_current_subst.Copy())
 
-						if err != nil {
-							Glob.Anomaly("SLC", "Error when merging substitutions.")
+						if !succeeded {
+							// Expected outcome (conflicting sibling substitutions), not an anomaly.
+							debug(Lib.MkLazy(func() string {
+								return fmt.Sprintf("Substitutions %v and %v incompatible: discarded", s.ToString(), new_current_subst.ToString())
+							}))
+							continue
 						}
 
 						new_result_subst = append(new_result_subst, new_subst)
@@ -1189,10 +1193,21 @@ func (ds *destructiveSearch) ManageClosureRule(
 			)
 
 			// Merge with applied subst (if any)
-			err, subst_and_form_for_father := Core.MergeSubstAndForm(subst_and_form_for_father.Copy(), st.GetAppliedSubst())
+			succeeded, subst_and_form_for_father := Core.TryMergeSubstAndForm(subst_and_form_for_father.Copy(), st.GetAppliedSubst())
 
-			if err != nil {
-				Glob.Anomaly("MCR", "Contradiction found between applied subst and child subst.")
+			if !succeeded {
+				// This candidate conflicts with what is already applied at this node
+				// (e.g. two sibling branches instantiating a shared meta-variable
+				// differently) - an expected search outcome, not an anomaly, so we
+				// discard this candidate and keep checking the others.
+				debug(
+					Lib.MkLazy(func() string {
+						return fmt.Sprintf(
+							"Candidate %v incompatible with applied subst %v: discarded",
+							subst_and_form_for_father.ToString(),
+							st.GetAppliedSubst().ToString())
+					}),
+				)
 			} else {
 
 				st.SetSubstsFound(Core.AppendIfNotContainsSubstAndForm(st.GetSubstsFound(), subst_and_form_for_father))

@@ -186,11 +186,24 @@ func (ds *destructiveSearch) passSubstToParent(args wcdArgs, proofChildren [][]P
 				)
 			}),
 		)
-		err, merged := Core.MergeSubstAndForm(subst, args.st.GetAppliedSubst())
+		succeeded, merged := Core.TryMergeSubstAndForm(subst, args.st.GetAppliedSubst())
 
-		if err != nil {
-			Glob.Anomaly("WC", "Error when merging the children substitution's with the applied one.")
-			return err
+		if !succeeded {
+			// This candidate conflicts with what is already applied at this node
+			// (typically: two sibling branches instantiated a shared meta-variable
+			// with different terms - e.g. Y9 -> a here vs. Y9 -> c already applied).
+			// That is an expected search outcome, not an anomaly, so we discard this
+			// candidate - same as the "cleaned.Empty()" case below - instead of
+			// aborting the whole proof search.
+			debug(
+				Lib.MkLazy(func() string {
+					return fmt.Sprintf(
+						"Substitution %v incompatible with applied subst %v: discarded",
+						subst.ToString(),
+						args.st.GetAppliedSubst().ToString())
+				}),
+			)
+			continue
 		}
 
 		cleaned := Core.RemoveElementWithoutMM(merged.GetSubst(), args.st.GetMM())

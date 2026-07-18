@@ -44,8 +44,10 @@ import (
 	"github.com/GoelandProver/Goeland/Glob"
 	"github.com/GoelandProver/Goeland/Lib"
 	"github.com/GoelandProver/Goeland/Mods/equality/eqStruct"
-	Unif "github.com/GoelandProver/Goeland/Unif/substitution"
 	"github.com/GoelandProver/Goeland/Unif/codetree"
+	"github.com/GoelandProver/Goeland/Unif/discriminationtree"
+
+	Unif "github.com/GoelandProver/Goeland/Unif/substitution"
 )
 
 type EqualityProblem struct {
@@ -142,6 +144,9 @@ func makeDataStructFromEqualities(eq Equalities) Unif.DataStructure {
 		formList.Append(e.GetT1(), e.GetT2())
 	}
 
+	if Glob.GetDt() {
+		return discriminationtree.MakeTermUnifProblem(Lib.ListCpy(formList))
+	}
 	return codetree.MakeTermUnifProblem(Lib.ListCpy(formList))
 }
 
