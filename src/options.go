@@ -433,6 +433,14 @@ func buildOptions() {
 			Glob.SetDt()
 		},
 		func(bool) {})
+	(&option[bool]{}).init(
+		"ep",
+		false,
+		"With -dt: use the discrimination tree's early-pruning retrieval",
+		func(bool) {
+			Glob.SetEarlyPruning()
+		},
+		func(bool) {})
 }
 
 func chronoInit() {

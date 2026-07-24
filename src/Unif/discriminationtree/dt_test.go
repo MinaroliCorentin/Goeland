@@ -422,6 +422,7 @@ func initDebuggers() {
 	AST.InitDebugger()
 	Typing.InitDebugger()
 	subst.InitDebugger()
+	InitDebugger()
 }
 
 func TestMain(m *testing.M) {

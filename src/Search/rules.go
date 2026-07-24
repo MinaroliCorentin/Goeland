@@ -212,8 +212,8 @@ func searchClosureRule(f AST.Form, st State) (bool, []substitution.MixedSubstitu
 				if isCompatible {
 					running_subst = subst2
 
-					new_subst := substitution.MakeMatchingSubstitutions(e.GetForm(), substitution.ToSubstitutions(subst2))
-					returnList.Append(new_subst.ToMixed())
+					new_subst := substitution.MakeMixedSubstitutions(e.GetForm(), subst2)
+					returnList.Append(new_subst)
 				}
 			}
 
@@ -236,8 +236,8 @@ func searchClosureRule(f AST.Form, st State) (bool, []substitution.MixedSubstitu
 					if isCompatible {
 						running_subst = subst2
 
-						new_subst := substitution.MakeMatchingSubstitutions(e.GetForm(), substitution.ToSubstitutions(subst2))
-						returnList.Append(new_subst.ToMixed())
+						new_subst := substitution.MakeMixedSubstitutions(e.GetForm(), subst2)
+						returnList.Append(new_subst)
 					}
 				}
 

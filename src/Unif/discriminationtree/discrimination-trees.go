@@ -31,7 +31,7 @@
 **/
 
 /**
-* This file contains all the definitons necessary to make a Code Tree
+* This file contains all the definitons necessary to make a Discrimination Tree
 **/
 
 package discriminationtree
@@ -157,9 +157,6 @@ func (tn TermNode) Equals(target NodeElement) bool {
 	if tn.Term != nil && typ.Term != nil {
 		return tn.Term.Equals(typ.Term)
 	}
-	if tn.Term == nil || typ.Term == nil {
-		return false
-	}
 	return false
 }
 
@@ -278,7 +275,10 @@ func (s SymbolType) Equals(target SymbolType) bool {
 	return s.symbol.Equals(target.symbol)
 }
 
-/* Each node of a CodeTree is composed of a sequence of instruction and its children. If it's a leaf, it has formulaes corresponding to the sequence of instructions. */
+/* Each node of a discrimination tree holds a single symbol (a function/predicate,
+   a type, or a meta, together with its arity) and its children. When it is a leaf,
+   leafFor / termLeafFor hold the predicates / terms whose flattened sequence ends
+   at this node. */
 type DiscriminationNode struct {
 	symbol   SymbolType                   // Contain the AST.Term and Arity
 	children Lib.List[DiscriminationNode] // All the children of the node
@@ -697,6 +697,78 @@ func (dNode DiscriminationNode) insertTermRec(seq Lib.List[SymbolType], original
 /********** Retriev **********/
 /*****************************/
 
+// typesCanUnify reports whether two type arguments, each kept by the tree as a
+// single opaque node, could be unified. A type meta-variable unifies with any
+// type; two constructors must share head symbol and argument count and unify
+// argument-wise; anything else falls back to structural equality.
+//
+// The discrimination tree is only a *filter*: the final Robinson unification
+// recomputes the real bindings, so this check must never under-approximate
+// (a wrong "false" silently drops a genuinely unifiable candidate - the bug
+// behind polymorphic goals such as maybe(A) vs maybe(sko)). Over-approximating
+// is harmless: a wrong "true" merely yields a candidate that Robinson rejects.
+func typesCanUnify(a, b AST.Ty) bool {
+	if _, ok := a.(AST.TyMeta); ok {
+		return true
+	}
+	if _, ok := b.(AST.TyMeta); ok {
+		return true
+	}
+
+	ca, aok := a.(AST.TyConstr)
+	cb, bok := b.(AST.TyConstr)
+	if aok && bok {
+		if ca.Symbol() != cb.Symbol() || ca.Args().Len() != cb.Args().Len() {
+			return false
+		}
+		for i := range ca.Args().GetSlice() {
+			if !typesCanUnify(ca.Args().At(i), cb.Args().At(i)) {
+				return false
+			}
+		}
+		return true
+	}
+
+	return a.Equals(b)
+}
+
+// symbolsUnifiableModuloTypes reports whether a stored tree symbol and a query
+// symbol denote the same function/predicate up to type-argument unification:
+// same identifier, same term arity, and pairwise-unifiable type arguments.
+//
+// This is deliberately looser than SymbolType.Equals, which demands
+// syntactically identical type arguments. Nested function symbols embed their
+// type arguments (e.g. head<A> in a stored polymorphic axiom vs head<sko> in a
+// ground query), so requiring equality there prunes valid candidates exactly
+// like the [Ty]-node case does; the concrete type binding is recovered by the
+// final Robinson unification.
+func symbolsUnifiableModuloTypes(treeSym, querySym SymbolType) bool {
+	if treeSym.GetArity() != querySym.GetArity() {
+		return false
+	}
+
+	treeFun, tok := treeSym.getTerm().(AST.Fun)
+	queryFun, qok := querySym.getTerm().(AST.Fun)
+	if !tok || !qok {
+		return false
+	}
+	if !treeFun.GetID().Equals(queryFun.GetID()) {
+		return false
+	}
+
+	treeTys := treeFun.GetTyArgs()
+	queryTys := queryFun.GetTyArgs()
+	if treeTys.Len() != queryTys.Len() {
+		return false
+	}
+	for i := range treeTys.GetSlice() {
+		if !typesCanUnify(treeTys.At(i), queryTys.At(i)) {
+			return false
+		}
+	}
+	return true
+}
+
 func GetSubTermLength(seq []SymbolType) int {
 	if len(seq) == 0 {
 		return 0
@@ -793,6 +865,24 @@ func retrieveCase(seq []SymbolType, currentEnv subst.Substitutions, child Discri
 		return
 	}
 
+	// Case 1bis. Type-argument matching up to unification. The tree keeps type
+	// arguments either as standalone [Ty] nodes (predicate level) or embedded on
+	// a function symbol (nested terms). A polymorphic stored type such as A /
+	// maybe(A) is not syntactically equal to a concrete query type such as
+	// sko / maybe(sko), yet the two unify, so we must descend rather than prune.
+	// Both kinds of node span exactly one sequence element, so we consume one
+	// element on each side; the final Robinson pass recomputes the type bindings.
+	if childTy, queryTy := child.getSymbol().GetTy(), symQuery.GetTy(); childTy != nil && queryTy != nil {
+		if typesCanUnify(childTy, queryTy) {
+			ch <- child.retrieveRec(seq[1:], currentEnv)
+		}
+		return
+	}
+	if symbolsUnifiableModuloTypes(child.getSymbol(), symQuery) {
+		ch <- child.retrieveRec(seq[1:], currentEnv)
+		return
+	}
+
 	// Case 2. The Symbol from the discriminationTree is a Meta
 	// We need to look the len of the actual term from the sequence. f(x) == 2, y == 1 and we skip the entire term
 	if child.getSymbol().getSymbol().IsMeta() {
@@ -884,6 +974,18 @@ func retrieveCaseTerm(seq []SymbolType, currentEnv subst.Substitutions, child Di
 		return
 	}
 
+	// Case 1bis. Type-argument matching up to unification (see retrieveCase).
+	if childTy, queryTy := child.getSymbol().GetTy(), symQuery.GetTy(); childTy != nil && queryTy != nil {
+		if typesCanUnify(childTy, queryTy) {
+			ch <- child.retrieveTermRec(seq[1:], currentEnv)
+		}
+		return
+	}
+	if symbolsUnifiableModuloTypes(child.getSymbol(), symQuery) {
+		ch <- child.retrieveTermRec(seq[1:], currentEnv)
+		return
+	}
+
 	if child.getSymbol().getSymbol().IsMeta() {
 		skip := GetSubTermLength(seq)
 		if skip <= len(seq) {
@@ -900,12 +1002,16 @@ func retrieveCaseTerm(seq []SymbolType, currentEnv subst.Substitutions, child Di
 /* DataStruct implementation */
 /*****************************/
 
+// Print routes the tree dump through the "unif" debugger, exactly like the code
+// tree's Print does. This keeps it silent on normal runs (e.g. -proof output)
+// and only visible when debugging is enabled, instead of writing to stdout
+// unconditionally.
 func (dNode DiscriminationNode) Print() {
 	if dNode.IsEmpty() {
-		fmt.Println("Empty Tree")
+		debug(Lib.MkLazy(func() string { return "Empty Tree" }))
 		return
 	}
-	fmt.Println("[ROOT]")
+	debug(Lib.MkLazy(func() string { return "[ROOT]" }))
 	for _, child := range dNode.getChildren().GetSlice() {
 		child.displayRec(1)
 	}
@@ -926,12 +1032,14 @@ func (dNode DiscriminationNode) displayRec(depth int) {
 		nodeTag = "[String]"
 	}
 
-	fmt.Printf("%s|-- %s %s (arity: %d)\n", indent, nodeTag, dNode.toString(), dNode.GetArity())
+	debug(Lib.MkLazy(func() string {
+		return fmt.Sprintf("%s|-- %s %s (arity: %d)", indent, nodeTag, dNode.toString(), dNode.GetArity())
+	}))
 
 	if dNode.getLeafFor().Len() > 0 {
 		leafIndent := indent + "    "
 		for _, pred := range dNode.getLeafFor().GetSlice() {
-			fmt.Printf("%s[=> %s]\n", leafIndent, pred.ToString())
+			debug(Lib.MkLazy(func() string { return fmt.Sprintf("%s[=> %s]", leafIndent, pred.ToString()) }))
 		}
 	}
 
@@ -1013,6 +1121,13 @@ func MakeTermUnifProblem(l Lib.List[AST.Term]) subst.DataStructure {
 
 func (dNode DiscriminationNode) Unify(inputFormula AST.Form) (bool, []subst.MixedSubstitutions) {
 
+	// With -ep, use the early-pruning retrieval. Both paths run the exact same
+	// final Robinson unification (see Unify2), so they return the same result;
+	// the flag only lets us compare the two retrieval strategies' speed.
+	if Glob.GetEarlyPruning() {
+		return dNode.Unify2(inputFormula)
+	}
+
 	candidates := dNode.RetrieveUnifiables(inputFormula)
 	var mixed []subst.MixedSubstitutions
 	var found bool
@@ -1030,11 +1145,7 @@ func (dNode DiscriminationNode) Unify(inputFormula AST.Form) (bool, []subst.Mixe
 		possibleMatchTerm := subst.TransformPred(possibleMatch.getPred())              // Pred -> Term for Robinson
 		finalSubst := subst.AddUnification(possibleMatchTerm, queryTerm, initialSubst) // Call Robinson
 
-		if finalSubst.Equals(subst.Failure()) {
-			fmt.Println("-------------------------")
-			fmt.Println("Substitution FAILURE")
-			fmt.Println("-------------------------")
-		} else {
+		if !finalSubst.Equals(subst.Failure()) {
 			found = true
 			matching := subst.MakeMatchingSubstitutions(possibleMatch.getPred(), finalSubst)
 			mixed = append(mixed, matching.ToMixed()) // convert To Mixed for return
@@ -1151,38 +1262,24 @@ func (dNode DiscriminationNode) Unify2(inputFormula AST.Form) (bool, []subst.Mix
 		return false, mixed
 	}
 
-	// Hide type arguments from Robinson to prevent crash during equality.
-	emptyTyArgs := Lib.NewList[AST.Ty]()
-	queryTermForRobinson := AST.MakerFun(queryPred.GetID(), emptyTyArgs, queryPred.GetArgs())
+	// The final unification is exactly the classic Unify one: transform predicate
+	// to term (types included, handled uniformly as term arguments) and run
+	// Robinson. Keeping this identical to Unify means the two modes differ *only*
+	// in their retrieval strategy (RetrieveUnifiables2's early pruning vs the
+	// classic RetrieveUnifiables), which is the whole point of the comparison.
+	queryTerm := subst.TransformPred(queryPred)
 
 	for _, possibleMatch := range candidates {
 		candPred := possibleMatch.getPred()
+		candTerm := subst.TransformPred(candPred)
 
-		candTermForRobinson := AST.MakerFun(candPred.GetID(), emptyTyArgs, candPred.GetArgs())
-
-		// NOTE: possibleMatch.GetSubs() holds whatever bindings the early-pruning
-		// traversal accumulated on its way down the tree - but those are keyed by
-		// the tree's OWN internally-normalized meta-variables (parsePred/parseTerm
-		// rename every meta to a fresh v1, v2, ... via NewContext(), purely so the
-		// tree can compare structure without caring about the caller's actual meta
-		// identities). Reusing that substitution here leaks those internal v1/v2
-		// names into the result returned to the caller, alongside the correct
-		// bindings for the caller's real query meta-variables (e.g. bse's
-		// METAEQ1/METAEQ2). A caller that expects the returned substitution to
-		// only mention its own meta-variables - like
-		// Mods/equality/bse's orderSubstForRetrieve - then chokes on the
-		// unexpected v1/v2 keys and raises a fatal "Meta EQ/NEQ not found"
-		// anomaly.
-		//
-		// The traversal's only job was to cheaply prune candidates that can't
-		// possibly match; it doesn't need to contribute anything to the final
-		// answer, since the Robinson call below re-unifies the two full terms
-		// from scratch anyway. So, exactly like the classic Unify (which starts
-		// the equivalent step from subst.Substitutions{}), start clean here too.
-		currentEnv := subst.Substitutions{}
-
-		// Final strict unification step
-		finalSubst := subst.AddUnification(candTermForRobinson, queryTermForRobinson, currentEnv)
+		// possibleMatch.GetSubs() carries whatever the early-pruning traversal
+		// accumulated, but those bindings are keyed by the tree's internally
+		// normalized metas (v1, v2, ... from NewContext()) and would leak into the
+		// result. The traversal only prunes; Robinson below re-unifies both full
+		// terms from scratch, so - like classic Unify - we start from a clean
+		// substitution.
+		finalSubst := subst.AddUnification(candTerm, queryTerm, subst.Substitutions{})
 
 		if !finalSubst.Equals(subst.Failure()) {
 			found = true
@@ -1273,6 +1370,25 @@ func retrieveCase2(seq []SymbolType, currentEnv subst.Substitutions, child Discr
 	if isExactMatch {
 		matches := child.retrieveRec2(seq[1:], currentEnv)
 		ch <- matches
+	}
+
+	// Case 1bis: type-argument / polymorphic symbol match up to unification
+	// (mirrors retrieveCase). A polymorphic stored type/symbol such as A / head<A>
+	// is not syntactically equal to a concrete query one, yet the two unify, so we
+	// descend instead of pruning; the final Robinson pass recomputes the bindings.
+	// Not threaded through currentEnv on purpose: Unify2 re-unifies from a clean
+	// substitution at the end anyway, exactly like the classic path.
+	if !isExactMatch {
+		if childTy, queryTy := childSym.GetTy(), symQuery.GetTy(); childTy != nil && queryTy != nil {
+			if typesCanUnify(childTy, queryTy) {
+				ch <- child.retrieveRec2(seq[1:], currentEnv)
+			}
+			return
+		}
+		if symbolsUnifiableModuloTypes(childSym, symQuery) {
+			ch <- child.retrieveRec2(seq[1:], currentEnv)
+			return
+		}
 	}
 
 	// Case 2: The tree contains a meta-variable branch (Early Pruning Attempt)

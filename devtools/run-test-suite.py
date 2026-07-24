@@ -52,7 +52,7 @@ class Parser:
         arguments = self.arguments
         if not self.no_rocq_check:
             arguments += " -context -orocq"
-        return self.env + " ../src/_build/goeland " + arguments + " " + self.filename
+        return self.env + " ../src/_build/goeland -dt -ep " + arguments + " " + self.filename
 
     def getArgsForPrinting(self):
         rocq_chk_str = ""

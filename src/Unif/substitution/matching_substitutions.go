@@ -193,6 +193,19 @@ type MixedSubstitutions struct {
 	substs []MixedSubstitution
 }
 
+// Build a MixedSubstitutions directly from a form and an already-mixed
+// (term + type) substitution list. Use this instead of routing through
+// MakeMatchingSubstitutions(form, ToSubstitutions(substs)).ToMixed(): that
+// path forces the list through Substitutions (term-only) first, which
+// silently drops any TySubstitution entries (ToSubstitutions has no case
+// for them, and Substitutions itself has no way to represent one). That
+// silent drop is what caused type metavariable bindings (e.g. for a
+// polymorphic type parameter resolved via GAMMA + CLOSURE) to vanish
+// before ever reaching the final proof-printing substitution.
+func MakeMixedSubstitutions(form AST.Form, substs Lib.List[MixedSubstitution]) MixedSubstitutions {
+	return MixedSubstitutions{form.Copy(), Lib.ListCpy(substs).GetSlice()}
+}
+
 func (m MixedSubstitutions) GetForm() AST.Form {
 	return m.form.Copy()
 }
